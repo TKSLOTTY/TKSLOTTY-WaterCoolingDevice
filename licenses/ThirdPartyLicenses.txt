@@ -1,0 +1,14 @@
+THIRD-PARTY SOFTWARE NOTICES
+
+HIDSharp 2.1.0
+Copyright 2010-2019 James F. Bellinger
+Licensed under the Apache License, Version 2.0.
+Project/package information: https://www.nuget.org/packages/HidSharp/2.1.0
+The complete Apache License 2.0 text is included as Apache-2.0.txt.
+
+.NET Runtime
+Copyright Microsoft Corporation and contributors.
+The self-contained application includes Microsoft .NET runtime components.
+License information: https://github.com/dotnet/runtime/blob/main/LICENSE.TXT
+
+No endorsement by the third-party authors is implied.
