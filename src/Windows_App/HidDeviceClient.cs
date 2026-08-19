@@ -1,11 +1,42 @@
+using System.Security.Cryptography;
+using System.Text;
 using HidSharp;
 
 namespace WaterCoolingDevice;
 
+internal sealed class HidDeviceDescriptor
+{
+    internal HidDeviceDescriptor(HidDevice device, string productName, string serialNumber)
+    {
+        Device = device;
+        ProductName = productName;
+        SerialNumber = serialNumber;
+        Identity = string.IsNullOrWhiteSpace(serialNumber)
+            ? $"path:{device.DevicePath}"
+            : $"serial:{serialNumber}";
+    }
+
+    internal HidDevice Device { get; }
+    public string ProductName { get; }
+    public string SerialNumber { get; }
+    public string Identity { get; }
+    public bool HasSerialNumber => !string.IsNullOrWhiteSpace(SerialNumber);
+
+    public override string ToString() => HasSerialNumber
+        ? $"{ProductName} — Serial: {SerialNumber}"
+        : $"{ProductName} — Serial: (なし / unavailable)";
+}
+
+internal sealed class DeviceInUseException : IOException
+{
+    public DeviceInUseException(string message, Exception? innerException = null)
+        : base(message, innerException) { }
+}
+
 internal sealed class HidDeviceClient : IDisposable
 {
-    private const int VendorId = 0x2E8A;
-    private const int ProductId = 0x1144;
+    public const int VendorId = 0x2E8A;
+    public const int ProductId = 0x1144;
     // Current controller firmware exposes the vendor command channel as Report ID 7.
     private const byte ReportId = 7;
     private const byte ResponseFlag = 0x80;
@@ -25,6 +56,96 @@ internal sealed class HidDeviceClient : IDisposable
     public const byte GetSensorStatus = 0x4B;
     public const byte GetSettingsVersion = 0x4C;
 
+    private static readonly string DeviceLockFolder = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "WaterCoolingDevice", "DeviceLocks");
+
+    private HidDevice? device;
+    private HidStream? stream;
+    private FileStream? deviceLock;
+    private readonly SemaphoreSlim ioLock = new(1, 1);
+    private bool disposed;
+
+    public bool IsConnected => stream is not null;
+    public string? ConnectedIdentity { get; private set; }
+    public string? ConnectedSerialNumber { get; private set; }
+
+    public static IReadOnlyList<HidDeviceDescriptor> GetConnectedDevices()
+    {
+        var devices = new List<HidDeviceDescriptor>();
+        foreach (var item in DeviceList.Local.GetHidDevices(VendorId, ProductId)
+                     .Where(candidate => candidate.GetMaxOutputReportLength() > 0))
+        {
+            string serialNumber;
+            string productName;
+            try { serialNumber = item.GetSerialNumber()?.Trim() ?? string.Empty; }
+            catch { serialNumber = string.Empty; }
+            try { productName = item.GetProductName()?.Trim() ?? string.Empty; }
+            catch { productName = string.Empty; }
+
+            if (string.IsNullOrWhiteSpace(productName))
+                productName = "Water Cooling Device";
+
+            devices.Add(new HidDeviceDescriptor(item, productName, serialNumber));
+        }
+
+        // A single physical controller can expose more than one HID interface.
+        // Keep only the vendor interface with the largest report for each USB serial.
+        return devices
+            .GroupBy(item => item.Identity, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderByDescending(item => item.Device.GetMaxOutputReportLength())
+                .ThenByDescending(item => item.Device.GetMaxInputReportLength())
+                .First())
+            .OrderBy(item => item.HasSerialNumber ? 0 : 1)
+            .ThenBy(item => item.SerialNumber, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Device.DevicePath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public void Connect(HidDeviceDescriptor target)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        ioLock.Wait();
+        try
+        {
+            DisposeStreamCore();
+            Directory.CreateDirectory(DeviceLockFolder);
+            var lockPath = Path.Combine(DeviceLockFolder, LockFileName(target.Identity));
+
+            try
+            {
+                deviceLock = new FileStream(lockPath, FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (IOException ex)
+            {
+                throw new DeviceInUseException(
+                    "選択したコントローラは他のWater Cooling Deviceアプリで使用中です。", ex);
+            }
+
+            try
+            {
+                device = target.Device;
+                stream = device.Open();
+                stream.ReadTimeout = 1500;
+                stream.WriteTimeout = 1500;
+                ConnectedIdentity = target.Identity;
+                ConnectedSerialNumber = target.SerialNumber;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                DisposeStreamCore();
+                throw new DeviceInUseException(
+                    "選択したコントローラは他のアプリで使用中、またはアクセスできません。", ex);
+            }
+        }
+        finally
+        {
+            ioLock.Release();
+        }
+    }
+
     public async Task ConfigurePumpAsync(bool enabled, int duty)
     {
         duty = Math.Clamp(duty, 35, 100);
@@ -35,28 +156,9 @@ internal sealed class HidDeviceClient : IDisposable
             throw new IOException("PUMPモードの確認値が一致しません。");
     }
 
-    private HidDevice? device;
-    private HidStream? stream;
-    private readonly SemaphoreSlim ioLock = new(1, 1);
-
-    public bool IsConnected => stream is not null;
-
-    public void Connect()
-    {
-        DisposeStream();
-        device = DeviceList.Local.GetHidDevices(VendorId, ProductId)
-            .Where(item => item.GetMaxOutputReportLength() > 0)
-            .OrderByDescending(item => item.GetMaxOutputReportLength())
-            .FirstOrDefault()
-            ?? throw new IOException("Vendor HIDが見つかりません。");
-
-        stream = device.Open();
-        stream.ReadTimeout = 1500;
-        stream.WriteTimeout = 1500;
-    }
-
     public async Task<int> QueryAsync(byte command, byte channel, int value = 0)
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
         await ioLock.WaitAsync();
         try
         {
@@ -106,18 +208,44 @@ internal sealed class HidDeviceClient : IDisposable
         }
     }
 
-    private void DisposeStream()
+    public void Disconnect()
+    {
+        if (disposed) return;
+        ioLock.Wait();
+        try { DisposeStreamCore(); }
+        finally { ioLock.Release(); }
+    }
+
+    private void DisposeStreamCore()
     {
         stream?.Dispose();
         stream = null;
         device = null;
+        ConnectedIdentity = null;
+        ConnectedSerialNumber = null;
+        deviceLock?.Dispose();
+        deviceLock = null;
     }
 
-    public void Disconnect() => DisposeStream();
+    private static string LockFileName(string identity)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(identity.ToUpperInvariant()));
+        return $"{Convert.ToHexString(hash)}.lock";
+    }
 
     public void Dispose()
     {
-        DisposeStream();
-        ioLock.Dispose();
+        if (disposed) return;
+        ioLock.Wait();
+        try
+        {
+            if (disposed) return;
+            DisposeStreamCore();
+            disposed = true;
+        }
+        finally
+        {
+            ioLock.Release();
+        }
     }
 }

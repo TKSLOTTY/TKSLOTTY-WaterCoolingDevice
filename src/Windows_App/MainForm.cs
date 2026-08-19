@@ -5,6 +5,17 @@ internal sealed class MainForm : Form
     private readonly HidDeviceClient client = new();
     private readonly System.Windows.Forms.Timer refreshTimer = new() { Interval = 1000 };
     private readonly System.Windows.Forms.Timer animationTimer = new() { Interval = 100 };
+    private readonly Label deviceSelectorLabel = new() {
+        Text = "接続デバイス:", AutoSize = true, Padding = new Padding(0, 7, 6, 0)
+    };
+    private readonly ComboBox deviceComboBox = new() {
+        DropDownStyle = ComboBoxStyle.DropDownList, Width = 560
+    };
+    private readonly FlowLayoutPanel deviceSelectorPanel = new() {
+        Dock = DockStyle.Fill, WrapContents = false, Padding = new Padding(18, 6, 18, 4),
+        Visible = false
+    };
+    private readonly RowStyle deviceSelectorRowStyle = new(SizeType.Absolute, 0);
     private readonly Font temperatureNormalFont = new("Segoe UI Semibold", 22f);
     private readonly Font temperatureFaultFont = new("Segoe UI Semibold", 14f);
     private readonly Label connectionLabel = MakeValueLabel("未接続", 12);
@@ -92,7 +103,17 @@ internal sealed class MainForm : Form
     private bool warningAlarmActive;
     private bool sensorFault;
     private bool reconnecting;
+    private bool updatingDeviceSelector;
+    private string? preferredDeviceIdentity;
+    private string? pendingDeviceIdentity;
+    private string lastDeviceListSignature = string.Empty;
+    private string connectionStatusJapanese = "未接続";
+    private string connectionStatusEnglish = "Disconnected";
+    private string connectionDetailJapanese = string.Empty;
+    private string connectionDetailEnglish = string.Empty;
+    private Color connectionStatusColor = Color.White;
     private DateTime nextReconnectAttemptUtc = DateTime.MinValue;
+    private DateTime nextDeviceScanUtc = DateTime.MinValue;
     private int lastSettingsVersion = -1;
 
     private static readonly Dictionary<string, string> JapaneseToEnglish = new() {
@@ -100,6 +121,7 @@ internal sealed class MainForm : Form
         ["未接続"] = "Disconnected",
         ["接続中..."] = "Connecting...",
         ["● 水冷ファンコントローラ 接続済み"] = "● Water Cooling Device connected",
+        ["接続デバイス:"] = "Device:",
         ["Duty Table編集"] = "Fan Curve Settings",
         ["設定"] = "Settings",
         ["再接続"] = "Reconnect",
@@ -161,12 +183,23 @@ internal sealed class MainForm : Form
         tabs.TabPages.Add(BuildMonitorTab());
         tabs.TabPages.Add(BuildEditorTab());
         tabs.TabPages.Add(BuildSettingsTab());
-        Controls.Add(tabs);
+        deviceSelectorPanel.Controls.Add(deviceSelectorLabel);
+        deviceSelectorPanel.Controls.Add(deviceComboBox);
+        var shell = new TableLayoutPanel {
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2
+        };
+        shell.RowStyles.Add(deviceSelectorRowStyle);
+        shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        shell.Controls.Add(deviceSelectorPanel, 0, 0);
+        shell.Controls.Add(tabs, 0, 1);
+        Controls.Add(shell);
 
         refreshTimer.Tick += async (_, _) => await MonitorConnectionAsync();
         animationTimer.Tick += (_, _) => graph.Invalidate();
         animationTimer.Start();
         Shown += async (_, _) => await ConnectAsync(true);
+        deviceComboBox.SelectedIndexChanged +=
+            async (_, _) => await DeviceSelectionChangedAsync();
         FormClosed += (_, _) => {
             animationTimer.Stop();
             animationTimer.Dispose();
@@ -180,6 +213,7 @@ internal sealed class MainForm : Form
         englishCheckBox.CheckedChanged += (_, _) => {
             isEnglish = englishCheckBox.Checked;
             ApplyLanguage(this);
+            RefreshConnectionStatusDisplay();
             appSettings.English = isEnglish;
             appSettings.Save();
         };
@@ -212,6 +246,7 @@ internal sealed class MainForm : Form
         pumpModeCheckBox.Checked = appSettings.Fan2PumpMode;
         isEnglish = englishCheckBox.Checked;
         ApplyLanguage(this);
+        RefreshConnectionStatusDisplay();
         ConfigureTrayIcon();
         editGraph.DutyPointChanged += (_, e) => {
             var editors = e.Fan == 1 ? duty1Editors : duty2Editors;
@@ -380,6 +415,8 @@ internal sealed class MainForm : Form
         if (reconnecting || busy) return;
 
         if (client.IsConnected) {
+            if (DateTime.UtcNow >= nextDeviceScanUtc)
+                await RefreshDeviceSelectorAsync();
             await RefreshStatusAsync();
             return;
         }
@@ -388,20 +425,56 @@ internal sealed class MainForm : Form
             await ConnectAsync(false);
     }
 
-    private async Task ConnectAsync(bool manual)
+    private async Task ConnectAsync(bool manual, string? requestedIdentity = null)
     {
         if (reconnecting) return;
         if (!manual && DateTime.UtcNow < nextReconnectAttemptUtc) return;
 
         reconnecting = true;
+        refreshTimer.Stop();
+        deviceComboBox.Enabled = false;
         try
         {
-            connectionLabel.Text = T("接続中...", "Connecting...");
-            await Task.Run(client.Connect);
-            connectionLabel.Text = T("● 水冷ファンコントローラ 接続済み",
-                "● Water Cooling Device connected");
-            connectionLabel.ForeColor = Color.LightGreen;
+            SetConnectionStatus("接続中...", "Connecting...", Color.Gainsboro);
+            var devices = await Task.Run(HidDeviceClient.GetConnectedDevices);
+            var desiredIdentity = requestedIdentity ?? preferredDeviceIdentity;
+            UpdateDeviceSelector(devices, desiredIdentity);
+
+            var target = desiredIdentity is null
+                ? null
+                : devices.FirstOrDefault(item =>
+                    string.Equals(item.Identity, desiredIdentity, StringComparison.OrdinalIgnoreCase));
+
+            if (target is null && desiredIdentity is not null && !manual)
+            {
+                var serial = SerialFromIdentity(desiredIdentity);
+                throw new IOException(T(
+                    $"選択中のコントローラ (Serial: {serial}) が見つかりません。",
+                    $"The selected controller (Serial: {serial}) was not found."));
+            }
+
+            target ??= deviceComboBox.SelectedItem as HidDeviceDescriptor;
+            target ??= devices.FirstOrDefault();
+            if (target is null)
+                throw new IOException("Vendor HIDが見つかりません。");
+
+            preferredDeviceIdentity = target.Identity;
+            UpdateDeviceSelector(devices, target.Identity);
+            await Task.Run(() => client.Connect(target));
+
+            var connectedSuffix = target.HasSerialNumber
+                ? $" — Serial: {target.SerialNumber}"
+                : string.Empty;
+            SetConnectionStatus(
+                "● 水冷ファンコントローラ 接続済み",
+                "● Water Cooling Device connected",
+                Color.LightGreen,
+                connectedSuffix,
+                connectedSuffix);
+            Text = "Water Cooling Device Controller - PUMP Edition" +
+                (target.HasSerialNumber ? $" — {ShortSerial(target.SerialNumber)}" : string.Empty);
             nextReconnectAttemptUtc = DateTime.MinValue;
+            nextDeviceScanUtc = DateTime.UtcNow.AddSeconds(3);
             await LoadTablesAsync();
             lastSettingsVersion = await client.QueryAsync(HidDeviceClient.GetSettingsVersion, 0);
             await ApplyPumpSettingsAsync();
@@ -411,15 +484,111 @@ internal sealed class MainForm : Form
         {
             client.Disconnect();
             nextReconnectAttemptUtc = DateTime.UtcNow.AddSeconds(3);
-            connectionLabel.Text = T("● 未接続", "● Disconnected") + $": {ErrorText(ex)}";
-            connectionLabel.ForeColor = Color.Salmon;
+            SetConnectionStatus(
+                "● 未接続",
+                "● Disconnected",
+                Color.Salmon,
+                $": {ErrorText(ex, false)}",
+                $": {ErrorText(ex, true)}");
         }
         finally
         {
             reconnecting = false;
+            deviceComboBox.Enabled = deviceSelectorPanel.Visible;
             refreshTimer.Start();
         }
     }
+
+    private async Task DeviceSelectionChangedAsync()
+    {
+        if (updatingDeviceSelector || reconnecting ||
+            deviceComboBox.SelectedItem is not HidDeviceDescriptor selected)
+            return;
+        if (string.Equals(selected.Identity, client.ConnectedIdentity,
+                StringComparison.OrdinalIgnoreCase))
+            return;
+
+        preferredDeviceIdentity = selected.Identity;
+        if (busy)
+        {
+            pendingDeviceIdentity = selected.Identity;
+            return;
+        }
+        await ConnectAsync(true, selected.Identity);
+    }
+
+    private async Task RefreshDeviceSelectorAsync()
+    {
+        nextDeviceScanUtc = DateTime.UtcNow.AddSeconds(3);
+        try
+        {
+            var devices = await Task.Run(HidDeviceClient.GetConnectedDevices);
+            UpdateDeviceSelector(devices, preferredDeviceIdentity ?? client.ConnectedIdentity);
+        }
+        catch
+        {
+            // Device enumeration is retried on the next scan; active HID communication continues.
+        }
+    }
+
+    private void UpdateDeviceSelector(
+        IReadOnlyList<HidDeviceDescriptor> devices, string? selectedIdentity)
+    {
+        updatingDeviceSelector = true;
+        try
+        {
+            var signature = string.Join("\u001F", devices.Select(item =>
+                $"{item.Identity}\u001E{item.ProductName}\u001E{item.SerialNumber}"));
+            if (!string.Equals(signature, lastDeviceListSignature, StringComparison.Ordinal))
+            {
+                deviceComboBox.BeginUpdate();
+                try
+                {
+                    deviceComboBox.Items.Clear();
+                    foreach (var item in devices) deviceComboBox.Items.Add(item);
+                    lastDeviceListSignature = signature;
+                }
+                finally
+                {
+                    deviceComboBox.EndUpdate();
+                }
+            }
+
+            var selected = deviceComboBox.Items.Cast<HidDeviceDescriptor>()
+                .FirstOrDefault(item => string.Equals(item.Identity, selectedIdentity,
+                    StringComparison.OrdinalIgnoreCase));
+            var current = deviceComboBox.SelectedItem as HidDeviceDescriptor;
+            if (selected is not null)
+            {
+                if (current is null || !string.Equals(current.Identity, selected.Identity,
+                        StringComparison.OrdinalIgnoreCase))
+                    deviceComboBox.SelectedItem = selected;
+            }
+            else if (deviceComboBox.Items.Count > 0) deviceComboBox.SelectedIndex = 0;
+
+            var showSelector = devices.Count >= 2;
+            if (deviceSelectorPanel.Visible != showSelector)
+                deviceSelectorPanel.Visible = showSelector;
+            var selectorHeight = showSelector ? 46 : 0;
+            if (Math.Abs(deviceSelectorRowStyle.Height - selectorHeight) > 0.1f)
+                deviceSelectorRowStyle.Height = selectorHeight;
+            var shouldEnable = showSelector && !reconnecting;
+            if (deviceComboBox.Enabled != shouldEnable)
+                deviceComboBox.Enabled = shouldEnable;
+        }
+        finally
+        {
+            updatingDeviceSelector = false;
+        }
+    }
+
+    private static string SerialFromIdentity(string identity) =>
+        identity.StartsWith("serial:", StringComparison.OrdinalIgnoreCase)
+            ? identity[7..]
+            : "(unavailable)";
+
+    private static string ShortSerial(string serialNumber) =>
+        serialNumber.Length <= 8 ? serialNumber : serialNumber[^8..];
 
     private async Task RefreshStatusAsync()
     {
@@ -479,8 +648,12 @@ internal sealed class MainForm : Form
         {
             client.Disconnect();
             nextReconnectAttemptUtc = DateTime.UtcNow.AddSeconds(3);
-            connectionLabel.Text = T("● 通信エラー", "● Communication error") + $": {ErrorText(ex)}";
-            connectionLabel.ForeColor = Color.Salmon;
+            SetConnectionStatus(
+                "● 通信エラー",
+                "● Communication error",
+                Color.Salmon,
+                $": {ErrorText(ex, false)}",
+                $": {ErrorText(ex, true)}");
             temperatureLabel.Text = T("再接続待機中", "Waiting to reconnect");
             temperatureLabel.ForeColor = Color.Salmon;
             failSafeStatusLabel.Visible = false;
@@ -488,13 +661,24 @@ internal sealed class MainForm : Form
             pumpErrorStatusLabel.Visible = false;
             pumpErrorRowStyle.Height = 0;
         }
-        finally { busy = false; }
+        finally {
+            busy = false;
+            if (pendingDeviceIdentity is not null && !reconnecting)
+            {
+                var requestedIdentity = pendingDeviceIdentity;
+                pendingDeviceIdentity = null;
+                BeginInvoke(new Action(async () =>
+                    await ConnectAsync(true, requestedIdentity)));
+            }
+        }
     }
 
     private async Task LoadTablesAsync()
     {
         if (!client.IsConnected) return;
+        var lockSelectorForManualReload = !busy && !reconnecting;
         saveButton.Enabled = reloadButton.Enabled = false;
+        if (lockSelectorForManualReload) deviceComboBox.Enabled = false;
         try
         {
             duty1Table = await client.ReadTableAsync(true);
@@ -512,7 +696,11 @@ internal sealed class MainForm : Form
             graph.SetTables(duty1Table, duty2Table);
             editGraph.SetTables(duty1Table, duty2Table);
         }
-        finally { saveButton.Enabled = reloadButton.Enabled = true; }
+        finally {
+            saveButton.Enabled = reloadButton.Enabled = true;
+            if (lockSelectorForManualReload)
+                deviceComboBox.Enabled = deviceSelectorPanel.Visible && !reconnecting;
+        }
     }
 
     private async Task SaveTablesAsync()
@@ -520,6 +708,7 @@ internal sealed class MainForm : Form
         if (!client.IsConnected) return;
         refreshTimer.Stop();
         saveButton.Enabled = reloadButton.Enabled = false;
+        deviceComboBox.Enabled = false;
         try
         {
             duty1Table = duty1Editors.Select(item => (int)item.Value).ToArray();
@@ -547,6 +736,7 @@ internal sealed class MainForm : Form
         }
         finally {
             saveButton.Enabled = reloadButton.Enabled = true;
+            deviceComboBox.Enabled = deviceSelectorPanel.Visible && !reconnecting && !busy;
             refreshTimer.Start();
         }
     }
@@ -593,10 +783,18 @@ internal sealed class MainForm : Form
         appSettings.Save();
         UpdatePumpUi();
         if (!client.IsConnected) return;
+        deviceComboBox.Enabled = false;
         try { await ApplyPumpSettingsAsync(); }
         catch (Exception ex) {
-            connectionLabel.Text = T("● PUMP設定エラー", "● PUMP setting error") + $": {ErrorText(ex)}";
-            connectionLabel.ForeColor = Color.Salmon;
+            SetConnectionStatus(
+                "● PUMP設定エラー",
+                "● PUMP setting error",
+                Color.Salmon,
+                $": {ErrorText(ex, false)}",
+                $": {ErrorText(ex, true)}");
+        }
+        finally {
+            deviceComboBox.Enabled = deviceSelectorPanel.Visible && !reconnecting && !busy;
         }
     }
 
@@ -649,6 +847,26 @@ internal sealed class MainForm : Form
     }
 
     private string T(string japanese, string english) => isEnglish ? english : japanese;
+
+    private void SetConnectionStatus(
+        string japanese, string english, Color color,
+        string japaneseDetail = "", string englishDetail = "")
+    {
+        connectionStatusJapanese = japanese;
+        connectionStatusEnglish = english;
+        connectionDetailJapanese = japaneseDetail;
+        connectionDetailEnglish = englishDetail;
+        connectionStatusColor = color;
+        RefreshConnectionStatusDisplay();
+    }
+
+    private void RefreshConnectionStatusDisplay()
+    {
+        connectionLabel.Text = isEnglish
+            ? connectionStatusEnglish + connectionDetailEnglish
+            : connectionStatusJapanese + connectionDetailJapanese;
+        connectionLabel.ForeColor = connectionStatusColor;
+    }
 
     private static Color TemperatureColor(float temperature, float warningTemperature,
                                           Color lowEndpoint, Color highEndpoint)
@@ -769,12 +987,20 @@ internal sealed class MainForm : Form
         UpdatePumpUi();
     }
 
-    private string ErrorText(Exception ex)
+    private string ErrorText(Exception ex) => ErrorText(ex, isEnglish);
+
+    private string ErrorText(Exception ex, bool english)
     {
-        if (!isEnglish) return ex.Message;
+        if (!english) return ex.Message;
+
+        if (ex is DeviceInUseException)
+            return "The selected controller is in use by another application or cannot be accessed.";
 
         if (ex is TimeoutException)
             return "The water cooling controller did not respond.";
+
+        if (ex.Message.StartsWith("The selected controller", StringComparison.Ordinal))
+            return ex.Message;
 
         if (ex.Message.Contains("Vendor HIDが見つかりません", StringComparison.Ordinal))
             return "The vendor HID interface was not found.";
