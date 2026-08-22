@@ -1,7 +1,7 @@
-# Water Cooling Device — PUMP Edition
+# Water Cooling Device with Dynamic Lighting
 
 <p align="center">
-  <strong>水温を見て、ファンとポンプを動かし、異常時は安全側へ。</strong><br>
+  <strong>水温を見てファンを制御し、ARGBライティングまで一台に。</strong><br>
   水冷PC向け PWM / ARGB コントローラー
 </p>
 
@@ -22,7 +22,7 @@ Water Cooling Deviceは、水温連動PWM制御、回転数監視、OLED表示�
 | --- | --- | --- | --- |
 | 4ピンPWM × 2系統 | ARGB × 2系統 | 水温・Duty・RPM | Windows設定アプリ |
 | 最大8台 × 2ハブ | 最大8台 × 2ハブ | OLED単体表示 | C#ソースコード公開 |
-| ファンカーブ／PUMPモード | 系統別エフェクト | 本体設定保存 | 複数個体の識別対応 |
+| 独立ファンカーブ | 系統別エフェクト | 本体設定保存 | 複数個体の識別対応 |
 
 <p align="center">
   <img src="docs/images/product-front.jpg" alt="コントローラー正面" width="38%">
@@ -32,7 +32,6 @@ Water Cooling Deviceは、水温連動PWM制御、回転数監視、OLED表示�
 ## 主な特長
 
 - 水温に連動するFAN1／FAN2の独立ファンカーブ
-- FAN2をPWMポンプ用として使用できるPUMPモード
 - 水温、PWM Duty、RPMを確認できるOLEDディスプレイ
 - 本体ボタンとWindowsアプリの両方から設定可能
 - ARGB1／ARGB2をWindows上の別々のライティングデバイスとして認識
@@ -54,7 +53,6 @@ Water Cooling Deviceは、水温連動PWM制御、回転数監視、OLED表示�
 | --- | --- |
 | 水温が設定した警告温度を超過 | FAN1／FAN2をDuty 100%に固定 |
 | 水温センサーの断線・短絡・異常値 | FAN1／FAN2をDuty 100%に固定 |
-| PUMPモードでDuty 35%以上かつ300 RPM未満が5秒継続 | FAN2をDuty 100%に固定 |
 
 警告温度フェイルセーフは、設定温度より1℃下がるまで解除しないヒステリシス付きです。センサー異常時はOLEDへ `SENSOR ERROR!`、警告温度超過時は `WARNING TEMP!` を表示します。
 
@@ -64,7 +62,7 @@ Water Cooling Deviceは、水温連動PWM制御、回転数監視、OLED表示�
 
 ## Windowsアプリ
 
-接続中の水温、PWM Duty、RPMをリアルタイム表示し、FAN1／FAN2のファンカーブや警告温度、PUMPモードを設定できます。
+接続中の水温、PWM Duty、RPMをリアルタイム表示し、FAN1／FAN2のファンカーブや警告温度を設定できます。
 
 - USB Serial Numberによる複数台の識別・選択
 - Windowsアプリの複数起動と同一個体の二重制御防止
@@ -88,6 +86,15 @@ SignalRGBでも動作を確認していますが、非公式対応のため、�
   <img src="docs/images/windows-dynamic-lighting.jpg" alt="Windows Dynamic Lightingで2系統を認識" width="48%">
   <img src="docs/images/signalrgb.jpg" alt="SignalRGBでの動作確認" width="48%">
 </p>
+
+<details>
+<summary><strong>実験的機能：PUMPモード</strong></summary>
+
+FAN2を対応する4ピンPWMポンプ用の固定Duty出力として使用できます。ただし、この機能は実験的な位置付けであり、主機能・動作保証の対象外です。ポンプによって始動可能なDutyや制御仕様が異なるため、対応可否と確実に始動・連続回転できる設定を必ず実機で確認してください。設定によってはポンプが停止する可能性があります。
+
+PUMPモード中は、Duty 35%以上かつ300 RPM未満の状態が5秒継続すると、補助的なフェイルセーフとしてFAN2をDuty 100%に固定します。この機能はポンプや水冷システム全体の安全を保証するものではありません。
+
+</details>
 
 ## USB識別情報
 
@@ -113,7 +120,7 @@ VID／PIDは、Raspberry Pi財団より商用利用可能な固定番号とし�
 水温センサーフィッティングは、GPUブロックやラジエーターの空きポートへ取り付けできます。
 
 > [!IMPORTANT]
-> ファン端子は**4ピンPWMファン専用**です。3ピンファンには対応していません。接続前にファンやポンプの仕様をご確認ください。
+> 標準機能のファン端子は**4ピンPWMファン専用**です。3ピンファンには対応していません。PUMPモードは上記のとおり実験的機能です。
 
 ## ソフトウェア配布
 
@@ -127,7 +134,7 @@ VID／PIDは、Raspberry Pi財団より商用利用可能な固定番号とし�
 
 ## メルカリで販売中
 
-**新品・検査済みのWater Cooling Deviceをメルカリで販売しています。** 先着5台には、設定ソフトウェアを収録したUSBメモリをおまけとして同梱します。
+**新品・検査済みのWater Cooling Device with Dynamic Lightingをメルカリで販売しています。** 先着5台には、設定ソフトウェアを収録したUSBメモリをおまけとして同梱します。
 
 ### [メルカリの商品ページを見る →](https://jp.mercari.com/item/m78224442303)
 
