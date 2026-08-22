@@ -38,8 +38,8 @@ internal sealed class HidDeviceClient : IDisposable
     public const int VendorId = 0x2E8A;
     public const int ProductId = 0x1144;
     // Current controller firmware exposes the vendor command channel as Report ID 7.
-    private const byte ReportId = 7;
-    private const byte ResponseFlag = 0x80;
+    public const byte ReportId = 7;
+    public const byte ResponseFlag = 0x80;
 
     public const byte GetFanRpm = 0x30;
     public const byte GetDuty = 0x31;
@@ -55,6 +55,12 @@ internal sealed class HidDeviceClient : IDisposable
     public const byte GetPumpStatus = 0x4A;
     public const byte GetSensorStatus = 0x4B;
     public const byte GetSettingsVersion = 0x4C;
+    public const byte SetLedCount = 0x4D;
+    public const byte GetLedCount = 0x4E;
+    public const byte ApplyLedConfig = 0x4F;
+    public const byte SetLedLayout = 0x59;
+    public const byte GetLedLayout = 0x5A;
+    public const byte Ping = 0x70;
 
     private static readonly string DeviceLockFolder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

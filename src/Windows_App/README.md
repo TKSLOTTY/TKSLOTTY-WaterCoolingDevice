@@ -27,7 +27,12 @@ dotnet build -c Release
 - `DutyGraphControl.cs`: ファンカーブグラフ
 - `StyledTabControl.cs`: タブの外観
 - `HidDeviceClient.cs`: 本体とのUSB HID通信
+- `PROTOCOL_REFERENCE.md`: AIやカスタムUI向けの通常機能Vendor HID仕様
 - `AppSettings.cs`: Windows側設定の保存
+
+通常機能のコマンド、パケット形式、値の単位は`PROTOCOL_REFERENCE.md`を参照してください。工場検査・検査証書・復旧用のシステムコマンドは対象外です。
+
+> **重要:** SET系コマンドを監視ループへ入れないでください。設定はEEPROM領域（RP2040内蔵フラッシュ）へ保存されるため、定期的な再送は不要な書き込みと寿命低下の原因になります。監視ループはGET系だけにし、SET系は値が実際に変わったときだけ送信してください。
 
 ## センサー故障表示
 

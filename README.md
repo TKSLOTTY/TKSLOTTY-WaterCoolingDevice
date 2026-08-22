@@ -127,6 +127,7 @@ VID／PIDは、Raspberry Pi財団より商用利用可能な固定番号とし�
 - Windowsアプリ: `WaterCoolingDevice-App-v1.0.zip`
 - Windowsアプリソース: `WaterCoolingDevice-Source-v1.0.zip`
 - リポジトリ内ソース: [`src/Windows_App`](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/tree/main/src/Windows_App)
+- AI／カスタムUI向け通信仕様: [`PROTOCOL_REFERENCE.md`](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/blob/main/src/Windows_App/PROTOCOL_REFERENCE.md)
 
 配布ファイルは[GitHub Releases](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/releases)から取得してください。利用・改変・再配布の条件は[`licenses`](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/tree/main/licenses)内の文書をご確認ください。
 
