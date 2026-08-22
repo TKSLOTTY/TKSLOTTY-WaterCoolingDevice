@@ -71,7 +71,7 @@ Water Cooling Deviceは、水温連動PWM制御、回転数監視、OLED表示�
 - 選択個体を優先した自動再接続
 - 日本語／英語の接続ステータス表示
 
-Windowsアプリは[Releases](https://github.com/TKSLOTTY/WaterCoolingDevice-PUMP-VID1144/releases)からダウンロードできます。C#ソースコードは[`src/Windows_App`](src/Windows_App)で公開しており、ライセンス条件の範囲内で用途に合わせたカスタマイズが可能です。
+Windowsアプリは[Releases](https://github.com/TKSLOTTY/WaterCoolingDevice-PUMP-VID1144/releases)からダウンロードできます。C#ソースコードは[`src/Windows_App`](https://github.com/TKSLOTTY/WaterCoolingDevice-PUMP-VID1144/tree/main/src/Windows_App)で公開しており、ライセンス条件の範囲内で用途に合わせたカスタマイズが可能です。
 
 <p align="center">
   <img src="docs/images/windows-status.jpg" alt="Windowsアプリの状態表示" width="48%">
@@ -119,9 +119,9 @@ VID／PIDは、Raspberry Pi財団より商用利用可能な固定番号とし�
 
 - Windowsアプリ: `WaterCoolingDevice-App-v1.0.zip`
 - Windowsアプリソース: `WaterCoolingDevice-Source-v1.0.zip`
-- リポジトリ内ソース: [`src/Windows_App`](src/Windows_App)
+- リポジトリ内ソース: [`src/Windows_App`](https://github.com/TKSLOTTY/WaterCoolingDevice-PUMP-VID1144/tree/main/src/Windows_App)
 
-配布ファイルは[GitHub Releases](https://github.com/TKSLOTTY/WaterCoolingDevice-PUMP-VID1144/releases)から取得してください。利用・改変・再配布の条件は[`licenses`](licenses)内の文書をご確認ください。
+配布ファイルは[GitHub Releases](https://github.com/TKSLOTTY/WaterCoolingDevice-PUMP-VID1144/releases)から取得してください。利用・改変・再配布の条件は[`licenses`](https://github.com/TKSLOTTY/WaterCoolingDevice-PUMP-VID1144/tree/main/licenses)内の文書をご確認ください。
 
 ---
 
