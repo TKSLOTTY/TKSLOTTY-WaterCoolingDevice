@@ -171,7 +171,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "Water Cooling Device Controller - PUMP Edition";
+        Text = "Water Cooling Device with Dynamic Lighting";
         ClientSize = new Size(980, 680);
         MinimumSize = new Size(820, 580);
         StartPosition = FormStartPosition.CenterScreen;
@@ -471,7 +471,7 @@ internal sealed class MainForm : Form
                 Color.LightGreen,
                 connectedSuffix,
                 connectedSuffix);
-            Text = "Water Cooling Device Controller - PUMP Edition" +
+            Text = "Water Cooling Device with Dynamic Lighting" +
                 (target.HasSerialNumber ? $" — {ShortSerial(target.SerialNumber)}" : string.Empty);
             nextReconnectAttemptUtc = DateTime.MinValue;
             nextDeviceScanUtc = DateTime.UtcNow.AddSeconds(3);
