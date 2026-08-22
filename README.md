@@ -59,7 +59,7 @@ Water Cooling Deviceは、水温連動PWM制御、回転数監視、OLED表示�
 警告温度フェイルセーフは、設定温度より1℃下がるまで解除しないヒステリシス付きです。センサー異常時はOLEDへ `SENSOR ERROR!`、警告温度超過時は `WARNING TEMP!` を表示します。
 
 <p align="center">
-  <img src="docs/images/factory-test.jpg" alt="出荷前検査アプリのPASS画面" width="820">
+  <img src="docs/images/factory-test.png" alt="出荷前検査アプリのPASS画面" width="820">
 </p>
 
 ## Windowsアプリ
@@ -74,8 +74,8 @@ Water Cooling Deviceは、水温連動PWM制御、回転数監視、OLED表示�
 Windowsアプリは[Releases](https://github.com/TKSLOTTY/WaterCoolingDevice-PUMP-VID1144/releases)からダウンロードできます。C#ソースコードは[`src/Windows_App`](https://github.com/TKSLOTTY/WaterCoolingDevice-PUMP-VID1144/tree/main/src/Windows_App)で公開しており、ライセンス条件の範囲内で用途に合わせたカスタマイズが可能です。
 
 <p align="center">
-  <img src="docs/images/windows-status.jpg" alt="Windowsアプリの状態表示" width="48%">
-  <img src="docs/images/windows-fan-curve.jpg" alt="Windowsアプリのファンカーブ編集" width="48%">
+  <img src="docs/images/windows-status.png" alt="Windowsアプリの状態表示" width="48%">
+  <img src="docs/images/windows-fan-curve.png" alt="Windowsアプリのファンカーブ編集" width="48%">
 </p>
 
 ## ARGB
