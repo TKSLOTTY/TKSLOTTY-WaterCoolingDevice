@@ -5,8 +5,8 @@ namespace WaterCoolingDevice;
 internal sealed class DutyGraphControl : Control
 {
     private readonly int[] temperatures = { 20, 30, 40, 50, 60 };
-    private int[] duty1 = { 10, 20, 25, 40, 70 };
-    private int[] duty2 = { 10, 20, 25, 40, 70 };
+    private int[] duty1 = { 10, 20, 30, 50, 70 };
+    private int[] duty2 = { 10, 20, 30, 50, 70 };
     private float waterTemperature = 25;
     private int currentDuty1;
     private int currentDuty2;

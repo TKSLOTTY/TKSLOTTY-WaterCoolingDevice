@@ -64,6 +64,9 @@ Water Cooling Deviceは、水温連動PWM制御、回転数監視、OLED表示�
 
 接続中の水温、PWM Duty、RPMをリアルタイム表示し、FAN1／FAN2のファンカーブや警告温度を設定できます。
 
+> [!IMPORTANT]
+> Windowsアプリの開発・配布における正本は、このリポジトリの`main`ブランチと最新Releaseです。ローカルに保存された旧版ZIPではなく、GitHub上の最新版を基準にしてください。
+
 - USB Serial Numberによる複数台の識別・選択
 - Windowsアプリの複数起動と同一個体の二重制御防止
 - 選択個体を優先した自動再接続
@@ -142,8 +145,8 @@ VID／PIDは、Raspberry Pi財団より商用利用可能な固定番号とし�
 
 ## ソフトウェア配布
 
-- Windowsアプリ: `WaterCoolingDevice-App-v1.0.zip`
-- Windowsアプリソース: `WaterCoolingDevice-Source-v1.0.zip`
+- Windowsアプリ: `WaterCoolingDevice-App-v2.2.2.zip`
+- Windowsアプリソース: `WaterCoolingDevice-Source-v2.2.2.zip`
 - リポジトリ内ソース: [`src/Windows_App`](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/tree/main/src/Windows_App)
 - AI／カスタムUI向け通信仕様: [`PROTOCOL_REFERENCE.md`](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/blob/main/src/Windows_App/PROTOCOL_REFERENCE.md)
 

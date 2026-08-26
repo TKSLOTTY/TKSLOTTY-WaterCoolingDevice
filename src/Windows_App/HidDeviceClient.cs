@@ -4,6 +4,20 @@ using HidSharp;
 
 namespace WaterCoolingDevice;
 
+internal enum LedLayoutKind
+{
+    Fan = 0,
+    Strip = 1,
+    Matrix = 2
+}
+
+internal sealed record LedPortConfiguration(
+    int LedCount,
+    LedLayoutKind Layout,
+    int MatrixWidth = 8,
+    int MatrixHeight = 8,
+    bool MatrixSerpentine = true);
+
 internal sealed class HidDeviceDescriptor
 {
     internal HidDeviceDescriptor(HidDevice device, string productName, string serialNumber)
@@ -38,8 +52,8 @@ internal sealed class HidDeviceClient : IDisposable
     public const int VendorId = 0x2E8A;
     public const int ProductId = 0x1144;
     // Current controller firmware exposes the vendor command channel as Report ID 7.
-    public const byte ReportId = 7;
-    public const byte ResponseFlag = 0x80;
+    private const byte ReportId = 7;
+    private const byte ResponseFlag = 0x80;
 
     public const byte GetFanRpm = 0x30;
     public const byte GetDuty = 0x31;
@@ -60,7 +74,7 @@ internal sealed class HidDeviceClient : IDisposable
     public const byte ApplyLedConfig = 0x4F;
     public const byte SetLedLayout = 0x59;
     public const byte GetLedLayout = 0x5A;
-    public const byte Ping = 0x70;
+    private const int ApplyLedConfigMagic = 0x0044454C;
 
     private static readonly string DeviceLockFolder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -70,9 +84,13 @@ internal sealed class HidDeviceClient : IDisposable
     private HidStream? stream;
     private FileStream? deviceLock;
     private readonly SemaphoreSlim ioLock = new(1, 1);
+    private readonly object stateLock = new();
     private bool disposed;
 
-    public bool IsConnected => stream is not null;
+    public bool IsConnected
+    {
+        get { lock (stateLock) return stream is not null; }
+    }
     public string? ConnectedIdentity { get; private set; }
     public string? ConnectedSerialNumber { get; private set; }
 
@@ -111,17 +129,20 @@ internal sealed class HidDeviceClient : IDisposable
 
     public void Connect(HidDeviceDescriptor target)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
+        ThrowIfDisposed();
         ioLock.Wait();
+        HidStream? openedStream = null;
+        FileStream? openedDeviceLock = null;
         try
         {
+            ThrowIfDisposed();
             DisposeStreamCore();
             Directory.CreateDirectory(DeviceLockFolder);
             var lockPath = Path.Combine(DeviceLockFolder, LockFileName(target.Identity));
 
             try
             {
-                deviceLock = new FileStream(lockPath, FileMode.OpenOrCreate,
+                openedDeviceLock = new FileStream(lockPath, FileMode.OpenOrCreate,
                     FileAccess.ReadWrite, FileShare.None);
             }
             catch (IOException ex)
@@ -132,22 +153,32 @@ internal sealed class HidDeviceClient : IDisposable
 
             try
             {
-                device = target.Device;
-                stream = device.Open();
-                stream.ReadTimeout = 1500;
-                stream.WriteTimeout = 1500;
-                ConnectedIdentity = target.Identity;
-                ConnectedSerialNumber = target.SerialNumber;
+                openedStream = target.Device.Open();
+                openedStream.ReadTimeout = 1500;
+                openedStream.WriteTimeout = 1500;
+
+                lock (stateLock)
+                {
+                    ObjectDisposedException.ThrowIf(disposed, this);
+                    device = target.Device;
+                    stream = openedStream;
+                    deviceLock = openedDeviceLock;
+                    ConnectedIdentity = target.Identity;
+                    ConnectedSerialNumber = target.SerialNumber;
+                    openedStream = null;
+                    openedDeviceLock = null;
+                }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                DisposeStreamCore();
                 throw new DeviceInUseException(
                     "選択したコントローラは他のアプリで使用中、またはアクセスできません。", ex);
             }
         }
         finally
         {
+            openedStream?.Dispose();
+            openedDeviceLock?.Dispose();
             ioLock.Release();
         }
     }
@@ -162,28 +193,123 @@ internal sealed class HidDeviceClient : IDisposable
             throw new IOException("PUMPモードの確認値が一致しません。");
     }
 
+    public async Task<(int Port1, int Port2)> ReadLedCountsAsync()
+    {
+        var port1 = await QueryAsync(GetLedCount, 0);
+        var port2 = await QueryAsync(GetLedCount, 1);
+        if (port1 is < 1 or > 64 || port2 is < 1 or > 64)
+            throw new InvalidDataException($"本体のLED数設定が不正です。GPIO0={port1}, GPIO1={port2}");
+        return (port1, port2);
+    }
+
+    public async Task<(LedPortConfiguration Port1, LedPortConfiguration Port2)>
+        ReadLedConfigurationsAsync()
+    {
+        var counts = await ReadLedCountsAsync();
+        try
+        {
+            var port1 = UnpackLayout(counts.Port1, await QueryAsync(GetLedLayout, 0));
+            var port2 = UnpackLayout(counts.Port2, await QueryAsync(GetLedLayout, 1));
+            return (port1, port2);
+        }
+        catch (TimeoutException)
+        {
+            // Firmware before the layout command only knows circular fan geometry.
+            return (new(counts.Port1, LedLayoutKind.Fan),
+                    new(counts.Port2, LedLayoutKind.Fan));
+        }
+    }
+
+    public async Task ConfigureLedLayoutsAsync(
+        LedPortConfiguration port1, LedPortConfiguration port2)
+    {
+        ValidateLayout(port1, nameof(port1));
+        ValidateLayout(port2, nameof(port2));
+        if (await QueryAsync(SetLedCount, 0, port1.LedCount) != port1.LedCount)
+            throw new IOException("GPIO 0 LED数の書込み確認値が一致しません。");
+        if (await QueryAsync(SetLedCount, 1, port2.LedCount) != port2.LedCount)
+            throw new IOException("GPIO 1 LED数の書込み確認値が一致しません。");
+        var packed1 = PackLayout(port1);
+        var packed2 = PackLayout(port2);
+        if (await QueryAsync(SetLedLayout, 0, packed1) != packed1)
+            throw new IOException("GPIO 0 LED配置の書込み確認値が一致しません。ファームウェアを更新してください。");
+        if (await QueryAsync(SetLedLayout, 1, packed2) != packed2)
+            throw new IOException("GPIO 1 LED配置の書込み確認値が一致しません。ファームウェアを更新してください。");
+        var readBack = await ReadLedConfigurationsAsync();
+        if (readBack.Port1 != port1 || readBack.Port2 != port2)
+            throw new IOException("LED構成の再読込み値が一致しません。");
+        if (await QueryAsync(ApplyLedConfig, 0, ApplyLedConfigMagic) != ApplyLedConfigMagic)
+            throw new IOException("LED構成の適用応答が一致しません。");
+    }
+
+    private static void ValidateLayout(LedPortConfiguration configuration, string name)
+    {
+        if (configuration.LedCount is < 1 or > 64)
+            throw new ArgumentOutOfRangeException(name, "LED数は1～64です。");
+        if (configuration.Layout == LedLayoutKind.Matrix &&
+            (configuration.MatrixWidth is < 1 or > 64 ||
+             configuration.MatrixHeight is < 1 or > 64 ||
+             configuration.MatrixWidth * configuration.MatrixHeight != configuration.LedCount))
+            throw new ArgumentException("マトリックスの横×縦とLED数が一致しません。", name);
+    }
+
+    private static int PackLayout(LedPortConfiguration configuration)
+    {
+        var width = configuration.Layout == LedLayoutKind.Matrix
+            ? configuration.MatrixWidth : 8;
+        var height = configuration.Layout == LedLayoutKind.Matrix
+            ? configuration.MatrixHeight : 8;
+        var options = configuration.Layout == LedLayoutKind.Matrix &&
+                      configuration.MatrixSerpentine ? 1 : 0;
+        return (int)configuration.Layout | (width << 8) | (height << 16) |
+               (options << 24);
+    }
+
+    private static LedPortConfiguration UnpackLayout(int ledCount, int packed)
+    {
+        var raw = unchecked((uint)packed);
+        var layout = (LedLayoutKind)(raw & 0xFF);
+        var width = (int)((raw >> 8) & 0xFF);
+        var height = (int)((raw >> 16) & 0xFF);
+        var serpentine = ((raw >> 24) & 1) != 0;
+        var configuration = new LedPortConfiguration(
+            ledCount, layout, width, height, serpentine);
+        ValidateLayout(configuration, nameof(packed));
+        if (layout is < LedLayoutKind.Fan or > LedLayoutKind.Matrix)
+            throw new InvalidDataException($"本体のLED配置設定が不正です。Layout={layout}");
+        return configuration;
+    }
+
     public async Task<int> QueryAsync(byte command, byte channel, int value = 0)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
+        ThrowIfDisposed();
         await ioLock.WaitAsync();
         try
         {
-            if (device is null || stream is null)
-                throw new IOException("水冷ファンコントローラに接続されていません。");
+            HidDevice activeDevice;
+            HidStream activeStream;
+            lock (stateLock)
+            {
+                ObjectDisposedException.ThrowIf(disposed, this);
+                activeDevice = device ??
+                    throw new IOException("水冷ファンコントローラに接続されていません。");
+                activeStream = stream ??
+                    throw new IOException("水冷ファンコントローラに接続されていません。");
+            }
 
-            var output = new byte[Math.Max(64, device.GetMaxOutputReportLength())];
+            var output = new byte[Math.Max(64, activeDevice.GetMaxOutputReportLength())];
             output[0] = ReportId;
             output[1] = command;
             output[2] = channel;
             BitConverter.GetBytes(value).CopyTo(output, 3);
-            await Task.Run(() => stream.Write(output));
+            await Task.Run(() => activeStream.Write(output));
 
             var expected = (byte)(ResponseFlag | command);
             var deadline = Environment.TickCount64 + 1500;
             while (Environment.TickCount64 < deadline)
             {
-                var input = new byte[Math.Max(64, device.GetMaxInputReportLength())];
-                var count = await Task.Run(() => stream.Read(input));
+                var input = new byte[Math.Max(64, activeDevice.GetMaxInputReportLength())];
+                var count = await Task.Run(() => activeStream.Read(input));
                 if (count >= 7 && input[0] == ReportId &&
                     input[1] == expected && input[2] == channel)
                     return BitConverter.ToInt32(input, 3);
@@ -216,21 +342,51 @@ internal sealed class HidDeviceClient : IDisposable
 
     public void Disconnect()
     {
-        if (disposed) return;
+        if (IsDisposed()) return;
         ioLock.Wait();
-        try { DisposeStreamCore(); }
+        try
+        {
+            if (!IsDisposed()) DisposeStreamCore();
+        }
         finally { ioLock.Release(); }
     }
 
     private void DisposeStreamCore()
     {
-        stream?.Dispose();
-        stream = null;
-        device = null;
-        ConnectedIdentity = null;
-        ConnectedSerialNumber = null;
-        deviceLock?.Dispose();
-        deviceLock = null;
+        var (streamToDispose, lockToDispose) = DetachStreamCore();
+        DisposeDetachedResources(streamToDispose, lockToDispose);
+    }
+
+    private (HidStream? Stream, FileStream? DeviceLock) DetachStreamCore()
+    {
+        lock (stateLock)
+        {
+            var detachedStream = stream;
+            var detachedDeviceLock = deviceLock;
+            stream = null;
+            device = null;
+            ConnectedIdentity = null;
+            ConnectedSerialNumber = null;
+            deviceLock = null;
+            return (detachedStream, detachedDeviceLock);
+        }
+    }
+
+    private static void DisposeDetachedResources(
+        HidStream? streamToDispose, FileStream? lockToDispose)
+    {
+        try { streamToDispose?.Dispose(); }
+        finally { lockToDispose?.Dispose(); }
+    }
+
+    private bool IsDisposed()
+    {
+        lock (stateLock) return disposed;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        lock (stateLock) ObjectDisposedException.ThrowIf(disposed, this);
     }
 
     private static string LockFileName(string identity)
@@ -241,17 +397,15 @@ internal sealed class HidDeviceClient : IDisposable
 
     public void Dispose()
     {
-        if (disposed) return;
-        ioLock.Wait();
-        try
+        lock (stateLock)
         {
             if (disposed) return;
-            DisposeStreamCore();
             disposed = true;
         }
-        finally
-        {
-            ioLock.Release();
-        }
+
+        // Never wait for a HID operation or USB driver call on the UI thread.
+        // Windows shutdown must continue even if a read is stalled.
+        var (streamToDispose, lockToDispose) = DetachStreamCore();
+        _ = Task.Run(() => DisposeDetachedResources(streamToDispose, lockToDispose));
     }
 }

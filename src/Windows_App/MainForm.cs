@@ -73,6 +73,31 @@ internal sealed class MainForm : Form
         Minimum = 35, Maximum = 100, Value = 60, Width = 70,
         TextAlign = HorizontalAlignment.Center
     };
+    private readonly NumericUpDown ledCount1Editor = new() {
+        Minimum = 1, Maximum = 64, Value = 6, Width = 70,
+        TextAlign = HorizontalAlignment.Center
+    };
+    private readonly NumericUpDown ledCount2Editor = new() {
+        Minimum = 1, Maximum = 64, Value = 6, Width = 70,
+        TextAlign = HorizontalAlignment.Center
+    };
+    private readonly ComboBox ledLayout1Editor = MakeLayoutEditor();
+    private readonly ComboBox ledLayout2Editor = MakeLayoutEditor();
+    private readonly NumericUpDown matrixWidth1Editor = MakeMatrixEditor();
+    private readonly NumericUpDown matrixHeight1Editor = MakeMatrixEditor();
+    private readonly NumericUpDown matrixWidth2Editor = MakeMatrixEditor();
+    private readonly NumericUpDown matrixHeight2Editor = MakeMatrixEditor();
+    private readonly CheckBox matrixSerpentine1Editor = new() {
+        Text = "ジグザグ配線", AutoSize = true, Checked = true
+    };
+    private readonly CheckBox matrixSerpentine2Editor = new() {
+        Text = "ジグザグ配線", AutoSize = true, Checked = true
+    };
+    private readonly FlowLayoutPanel matrix1Panel = new() { AutoSize = true };
+    private readonly FlowLayoutPanel matrix2Panel = new() { AutoSize = true };
+    private readonly Button saveLedCountButton = new() {
+        Text = "LED構成を本体へ保存・適用", AutoSize = true
+    };
     private readonly Button warningColorButton = new() {
         Text = "警告温度の色を選択", AutoSize = true
     };
@@ -92,9 +117,10 @@ internal sealed class MainForm : Form
         TextAlign = HorizontalAlignment.Center
     };
     private bool busy;
-    private int[] duty1Table = { 10, 20, 25, 40, 70 };
-    private int[] duty2Table = { 10, 20, 25, 40, 70 };
+    private int[] duty1Table = { 10, 20, 30, 50, 70 };
+    private int[] duty2Table = { 10, 20, 30, 50, 70 };
     private bool updatingEditors;
+    private bool updatingLedLayoutEditors;
     private bool isEnglish;
     private Color warningColor;
     private Color lowColor;
@@ -122,7 +148,7 @@ internal sealed class MainForm : Form
         ["接続中..."] = "Connecting...",
         ["● 水冷ファンコントローラ 接続済み"] = "● Water Cooling Device connected",
         ["接続デバイス:"] = "Device:",
-        ["Duty Table編集"] = "Fan Curve Settings",
+        ["ファン出力編集"] = "Fan Output Settings",
         ["設定"] = "Settings",
         ["再接続"] = "Reconnect",
         ["水温"] = "Coolant Temperature",
@@ -165,13 +191,27 @@ internal sealed class MainForm : Form
             "Experimental / Use only with compatible pumps / Incorrect settings may stop the pump",
         ["PUMP 出力"] = "PUMP Output",
         ["PUMP RPM"] = "PUMP Speed",
+        ["ARGB LED構成"] = "ARGB LED Layout",
+        ["GPIO 0:"] = "GPIO 0:",
+        ["GPIO 1:"] = "GPIO 1:",
+        ["LED数:"] = "LED Count:",
+        ["配置:"] = "Layout:",
+        ["ファン（円形）"] = "Fan (Circle)",
+        ["LEDテープ（直線）"] = "LED Strip (Line)",
+        ["マトリックス"] = "Matrix",
+        ["横:"] = "Width:",
+        ["縦:"] = "Height:",
+        ["ジグザグ配線"] = "Serpentine Wiring",
+        ["LED構成を本体へ保存・適用"] = "Save and Apply LED Layout",
+        ["設定後に本体が自動再起動し、選択した3D配置をWindowsへ再通知します。"] =
+            "The device restarts and reports the selected 3D layout to Windows.",
         ["最小化すると通知領域に現在水温と温度色を表示します。"] =
             "When minimized, the notification area shows coolant temperature and its color."
     };
 
     public MainForm()
     {
-        Text = "Water Cooling Device with Dynamic Lighting";
+        Text = "Water Cooling Device Controller - PUMP Edition";
         ClientSize = new Size(980, 680);
         MinimumSize = new Size(820, 580);
         StartPosition = FormStartPosition.CenterScreen;
@@ -200,8 +240,12 @@ internal sealed class MainForm : Form
         Shown += async (_, _) => await ConnectAsync(true);
         deviceComboBox.SelectedIndexChanged +=
             async (_, _) => await DeviceSelectionChangedAsync();
-        FormClosed += (_, _) => {
+        FormClosing += (_, _) => {
+            refreshTimer.Stop();
             animationTimer.Stop();
+            client.Dispose();
+        };
+        FormClosed += (_, _) => {
             animationTimer.Dispose();
             trayIcon.Visible = false;
             trayIcon.Dispose();
@@ -213,6 +257,7 @@ internal sealed class MainForm : Form
         englishCheckBox.CheckedChanged += (_, _) => {
             isEnglish = englishCheckBox.Checked;
             ApplyLanguage(this);
+            UpdateLayoutEditorItems();
             RefreshConnectionStatusDisplay();
             appSettings.English = isEnglish;
             appSettings.Save();
@@ -231,6 +276,13 @@ internal sealed class MainForm : Form
         };
         pumpModeCheckBox.CheckedChanged += async (_, _) => await PumpSettingChangedAsync();
         pumpDutyEditor.ValueChanged += async (_, _) => await PumpSettingChangedAsync();
+        saveLedCountButton.Click += async (_, _) => await SaveLedCountsAsync();
+        ledLayout1Editor.SelectedIndexChanged += (_, _) => UpdateLedLayoutUi(0);
+        ledLayout2Editor.SelectedIndexChanged += (_, _) => UpdateLedLayoutUi(1);
+        matrixWidth1Editor.ValueChanged += (_, _) => UpdateMatrixLedCount(0, true);
+        matrixHeight1Editor.ValueChanged += (_, _) => UpdateMatrixLedCount(0, false);
+        matrixWidth2Editor.ValueChanged += (_, _) => UpdateMatrixLedCount(1, true);
+        matrixHeight2Editor.ValueChanged += (_, _) => UpdateMatrixLedCount(1, false);
         Resize += (_, _) => MinimizeToTrayIfNeeded();
 
         warningColor = Color.FromArgb(appSettings.WarningColorArgb);
@@ -245,6 +297,7 @@ internal sealed class MainForm : Form
         pumpDutyEditor.Value = Math.Clamp(appSettings.PumpDuty, 35, 100);
         pumpModeCheckBox.Checked = appSettings.Fan2PumpMode;
         isEnglish = englishCheckBox.Checked;
+        UpdateLayoutEditorItems();
         ApplyLanguage(this);
         RefreshConnectionStatusDisplay();
         ConfigureTrayIcon();
@@ -335,13 +388,15 @@ internal sealed class MainForm : Form
             AutoSize = true, ForeColor = Color.Orange, Padding = new Padding(0, 8, 0, 0)
         });
         panel.Controls.Add(pumpRow, 1, 5);
+        panel.Controls.Add(MakeHeader("ARGB LED構成"), 0, 6);
+        panel.Controls.Add(BuildLedLayoutPanel(), 1, 6);
         page.Controls.Add(panel);
         return page;
     }
 
     private TabPage BuildEditorTab()
     {
-        var page = NewTab("Duty Table編集");
+        var page = NewTab("ファン出力編集");
         var outer = new TableLayoutPanel {
             Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
             Padding = new Padding(18)
@@ -471,11 +526,12 @@ internal sealed class MainForm : Form
                 Color.LightGreen,
                 connectedSuffix,
                 connectedSuffix);
-            Text = "Water Cooling Device with Dynamic Lighting" +
+            Text = "Water Cooling Device Controller - PUMP Edition" +
                 (target.HasSerialNumber ? $" — {ShortSerial(target.SerialNumber)}" : string.Empty);
             nextReconnectAttemptUtc = DateTime.MinValue;
             nextDeviceScanUtc = DateTime.UtcNow.AddSeconds(3);
             await LoadTablesAsync();
+            await LoadLedCountsAsync();
             lastSettingsVersion = await client.QueryAsync(HidDeviceClient.GetSettingsVersion, 0);
             await ApplyPumpSettingsAsync();
             await RefreshStatusAsync();
@@ -703,6 +759,224 @@ internal sealed class MainForm : Form
         }
     }
 
+    private async Task LoadLedCountsAsync()
+    {
+        if (!client.IsConnected) return;
+        var layouts = await client.ReadLedConfigurationsAsync();
+        SetLedLayoutEditors(0, layouts.Port1);
+        SetLedLayoutEditors(1, layouts.Port2);
+    }
+
+    private Control BuildLedLayoutPanel()
+    {
+        var root = new TableLayoutPanel {
+            Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 1, RowCount = 4
+        };
+        root.Controls.Add(BuildLedPortPanel(0), 0, 0);
+        root.Controls.Add(BuildLedPortPanel(1), 0, 1);
+        root.Controls.Add(saveLedCountButton, 0, 2);
+        root.Controls.Add(new Label {
+            Text = "設定後に本体が自動再起動し、選択した3D配置をWindowsへ再通知します。",
+            AutoSize = true, ForeColor = Color.LightSkyBlue,
+            Padding = new Padding(0, 8, 0, 0)
+        }, 0, 3);
+        return root;
+    }
+
+    private Control BuildLedPortPanel(int port)
+    {
+        var layoutEditor = port == 0 ? ledLayout1Editor : ledLayout2Editor;
+        var countEditor = port == 0 ? ledCount1Editor : ledCount2Editor;
+        var matrixPanel = port == 0 ? matrix1Panel : matrix2Panel;
+        var widthEditor = port == 0 ? matrixWidth1Editor : matrixWidth2Editor;
+        var heightEditor = port == 0 ? matrixHeight1Editor : matrixHeight2Editor;
+        var serpentineEditor = port == 0
+            ? matrixSerpentine1Editor : matrixSerpentine2Editor;
+
+        matrixPanel.WrapContents = false;
+        matrixPanel.Controls.Add(new Label {
+            Text = "横:", AutoSize = true, Padding = new Padding(0, 6, 0, 0)
+        });
+        matrixPanel.Controls.Add(widthEditor);
+        matrixPanel.Controls.Add(new Label {
+            Text = "縦:", AutoSize = true, Padding = new Padding(8, 6, 0, 0)
+        });
+        matrixPanel.Controls.Add(heightEditor);
+        matrixPanel.Controls.Add(serpentineEditor);
+
+        var row = new FlowLayoutPanel {
+            Dock = DockStyle.Fill, AutoSize = true, WrapContents = true
+        };
+        row.Controls.Add(new Label {
+            Text = "配置:", AutoSize = true, Padding = new Padding(0, 6, 0, 0)
+        });
+        row.Controls.Add(layoutEditor);
+        row.Controls.Add(new Label {
+            Text = "LED数:", AutoSize = true, Padding = new Padding(10, 6, 0, 0)
+        });
+        row.Controls.Add(countEditor);
+        row.Controls.Add(matrixPanel);
+
+        var group = new GroupBox {
+            Text = port == 0 ? "ARGB1（GPIO 0）" : "ARGB2（GPIO 1）",
+            Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(10),
+            ForeColor = Color.White
+        };
+        group.Controls.Add(row);
+        return group;
+    }
+
+    private void UpdateLayoutEditorItems()
+    {
+        UpdateLayoutEditorItems(ledLayout1Editor);
+        UpdateLayoutEditorItems(ledLayout2Editor);
+    }
+
+    private void UpdateLayoutEditorItems(ComboBox editor)
+    {
+        var selected = Math.Max(0, editor.SelectedIndex);
+        updatingLedLayoutEditors = true;
+        editor.Items.Clear();
+        editor.Items.Add(T("ファン（円形）", "Fan (Circle)"));
+        editor.Items.Add(T("LEDテープ（直線）", "LED Strip (Line)"));
+        editor.Items.Add(T("マトリックス", "Matrix"));
+        editor.SelectedIndex = Math.Min(selected, editor.Items.Count - 1);
+        updatingLedLayoutEditors = false;
+        UpdateLedLayoutUi(editor == ledLayout1Editor ? 0 : 1);
+    }
+
+    private void UpdateLedLayoutUi(int port)
+    {
+        if (updatingLedLayoutEditors) return;
+        var layoutEditor = port == 0 ? ledLayout1Editor : ledLayout2Editor;
+        var countEditor = port == 0 ? ledCount1Editor : ledCount2Editor;
+        var matrixPanel = port == 0 ? matrix1Panel : matrix2Panel;
+        var isMatrix = layoutEditor.SelectedIndex == (int)LedLayoutKind.Matrix;
+        matrixPanel.Visible = isMatrix;
+        countEditor.Enabled = !isMatrix;
+        if (isMatrix) UpdateMatrixLedCount(port, true);
+    }
+
+    private void UpdateMatrixLedCount(int port, bool widthChanged)
+    {
+        if (updatingLedLayoutEditors) return;
+        var layoutEditor = port == 0 ? ledLayout1Editor : ledLayout2Editor;
+        if (layoutEditor.SelectedIndex != (int)LedLayoutKind.Matrix) return;
+        var widthEditor = port == 0 ? matrixWidth1Editor : matrixWidth2Editor;
+        var heightEditor = port == 0 ? matrixHeight1Editor : matrixHeight2Editor;
+        var countEditor = port == 0 ? ledCount1Editor : ledCount2Editor;
+        var width = (int)widthEditor.Value;
+        var height = (int)heightEditor.Value;
+        updatingLedLayoutEditors = true;
+        if (width * height > 64)
+        {
+            if (widthChanged) heightEditor.Value = Math.Max(1, 64 / width);
+            else widthEditor.Value = Math.Max(1, 64 / height);
+            width = (int)widthEditor.Value;
+            height = (int)heightEditor.Value;
+        }
+        countEditor.Value = width * height;
+        updatingLedLayoutEditors = false;
+    }
+
+    private void SetLedLayoutEditors(int port, LedPortConfiguration configuration)
+    {
+        var layoutEditor = port == 0 ? ledLayout1Editor : ledLayout2Editor;
+        var countEditor = port == 0 ? ledCount1Editor : ledCount2Editor;
+        var widthEditor = port == 0 ? matrixWidth1Editor : matrixWidth2Editor;
+        var heightEditor = port == 0 ? matrixHeight1Editor : matrixHeight2Editor;
+        var serpentineEditor = port == 0
+            ? matrixSerpentine1Editor : matrixSerpentine2Editor;
+        updatingLedLayoutEditors = true;
+        layoutEditor.SelectedIndex = (int)configuration.Layout;
+        countEditor.Value = configuration.LedCount;
+        widthEditor.Value = configuration.MatrixWidth;
+        heightEditor.Value = configuration.MatrixHeight;
+        if (configuration.Layout == LedLayoutKind.Matrix)
+            serpentineEditor.Checked = configuration.MatrixSerpentine;
+        updatingLedLayoutEditors = false;
+        UpdateLedLayoutUi(port);
+    }
+
+    private LedPortConfiguration GetLedLayoutFromEditors(int port)
+    {
+        var layout = (LedLayoutKind)(port == 0
+            ? ledLayout1Editor.SelectedIndex : ledLayout2Editor.SelectedIndex);
+        var count = (int)(port == 0 ? ledCount1Editor.Value : ledCount2Editor.Value);
+        if (layout != LedLayoutKind.Matrix)
+            return new LedPortConfiguration(count, layout, 8, 8, false);
+        var width = (int)(port == 0 ? matrixWidth1Editor.Value : matrixWidth2Editor.Value);
+        var height = (int)(port == 0 ? matrixHeight1Editor.Value : matrixHeight2Editor.Value);
+        var serpentine = port == 0
+            ? matrixSerpentine1Editor.Checked : matrixSerpentine2Editor.Checked;
+        return new LedPortConfiguration(width * height, layout, width, height, serpentine);
+    }
+
+    private static string LayoutName(LedLayoutKind layout, bool english) => layout switch
+    {
+        LedLayoutKind.Fan => english ? "Fan (Circle)" : "ファン（円形）",
+        LedLayoutKind.Strip => english ? "LED Strip (Line)" : "LEDテープ（直線）",
+        LedLayoutKind.Matrix => english ? "Matrix" : "マトリックス",
+        _ => layout.ToString()
+    };
+
+    private async Task SaveLedCountsAsync()
+    {
+        if (!client.IsConnected)
+        {
+            MessageBox.Show(this,
+                T("本体へ接続してから設定してください。", "Connect the device before changing LED counts."),
+                T("未接続", "Disconnected"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        refreshTimer.Stop();
+        saveLedCountButton.Enabled = false;
+        deviceComboBox.Enabled = false;
+        try
+        {
+            var port1 = GetLedLayoutFromEditors(0);
+            var port2 = GetLedLayoutFromEditors(1);
+            await client.ConfigureLedLayoutsAsync(port1, port2);
+            SetConnectionStatus(
+                "● LED構成を保存しました。本体を再起動中...",
+                "● LED layout saved. Restarting device...",
+                Color.LightSkyBlue);
+
+            string? reconnectIdentity = preferredDeviceIdentity ?? client.ConnectedIdentity;
+            client.Disconnect();
+            await Task.Delay(1800);
+            for (int attempt = 0; attempt < 10 && !client.IsConnected; attempt++)
+            {
+                await ConnectAsync(true, reconnectIdentity);
+                if (!client.IsConnected) await Task.Delay(500);
+            }
+            if (!client.IsConnected)
+                throw new IOException("LED構成適用後のUSB再接続に失敗しました。");
+
+            MessageBox.Show(this,
+                T($"GPIO 0 = {LayoutName(port1.Layout, false)}・{port1.LedCount}灯、" +
+                  $"GPIO 1 = {LayoutName(port2.Layout, false)}・{port2.LedCount}灯で保存しました。\n" +
+                  "Windows Dynamic Lightingへ3D配置を再通知しました。",
+                  $"Saved GPIO 0 = {LayoutName(port1.Layout, true)} / {port1.LedCount} LEDs, " +
+                  $"GPIO 1 = {LayoutName(port2.Layout, true)} / {port2.LedCount} LEDs.\n" +
+                  "The 3D layouts were reported to Windows Dynamic Lighting."),
+                T("LED構成を適用しました", "LED Layout Applied"),
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ErrorText(ex), T("LED設定エラー", "LED Setting Error"),
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            saveLedCountButton.Enabled = true;
+            deviceComboBox.Enabled = deviceSelectorPanel.Visible && !reconnecting && !busy;
+            refreshTimer.Start();
+        }
+    }
+
     private async Task SaveTablesAsync()
     {
         if (!client.IsConnected) return;
@@ -751,7 +1025,7 @@ internal sealed class MainForm : Form
 
     private void ResetEditorsToDefaults()
     {
-        var defaults = new[] { 10, 20, 25, 40, 70 };
+        var defaults = new[] { 10, 20, 30, 50, 70 };
         updatingEditors = true;
         for (var i = 0; i < 5; i++) {
             duty1Editors[i].Value = defaults[i];
@@ -830,6 +1104,13 @@ internal sealed class MainForm : Form
         Minimum = 0, Maximum = 100, Increment = 1, Dock = DockStyle.Fill,
         TextAlign = HorizontalAlignment.Center, Font = new Font("Segoe UI", 12),
         Margin = new Padding(10)
+    };
+    private static ComboBox MakeLayoutEditor() => new() {
+        DropDownStyle = ComboBoxStyle.DropDownList, Width = 150
+    };
+    private static NumericUpDown MakeMatrixEditor() => new() {
+        Minimum = 1, Maximum = 64, Value = 8, Width = 60,
+        TextAlign = HorizontalAlignment.Center
     };
     private static Control MakeCard(string title, Label value) =>
         MakeCard(new Label { Text = title, AutoSize = true, ForeColor = Color.Silver }, value);
