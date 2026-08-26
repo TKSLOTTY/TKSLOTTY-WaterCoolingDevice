@@ -1,0 +1,2 @@
+# WaterCoolingDevice RP2040 VID:PID 2E8A:1144
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="1144", MODE="0660", TAG+="uaccess"
