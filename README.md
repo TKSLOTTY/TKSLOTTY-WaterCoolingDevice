@@ -48,8 +48,7 @@ Water Cooling Deviceは、RP2040を採用し、水温連動ファン制御、回
 | 独立ファンカーブ | 系統別エフェクト | 本体設定保存 | 複数個体の識別対応 |
 
 <p align="center">
-  <img src="docs/images/product-front.jpg" alt="コントローラー正面" width="38%">
-  <img src="docs/images/product-back.jpg" alt="コントローラー背面" width="38%">
+  <img src="docs/images/product-controller.jpg" alt="Water Cooling Device本体のOLED表示" width="520">
 </p>
 
 ## 主な特長
@@ -198,10 +197,6 @@ VID／PIDは、Raspberry Pi財団より商用利用可能な固定番号とし�
 - AI／カスタムUI向け通信仕様: [`PROTOCOL_REFERENCE.md`](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/blob/main/src/Windows_App/PROTOCOL_REFERENCE.md)
 
 配布ファイルは[WindowsアプリのGitHub Releases](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases)から取得してください。利用・改変・再配布の条件は各リポジトリ内のライセンス文書をご確認ください。
-
-## WCD-01 “LUNE”について
-
-WCD-01 “LUNE”（ルネ）は、Water Cooling Deviceの機能と状態を分かりやすく案内するオリジナルキャラクターです。水冷ループ、ファン、温度監視をモチーフにデザインしています。将来のWindowsアプリでは、水温や警告状態に応じて表情と動きが変化するデスクトップナビゲーターとしての実装を検討しています。
 
 ---
 
