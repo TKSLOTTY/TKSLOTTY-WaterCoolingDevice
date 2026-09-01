@@ -62,11 +62,6 @@ Water Cooling Deviceは、RP2040を採用し、水温連動ファン制御、回
 - 本体ごとに固有のUSB Serial Numberを設定
 - 設定内容を本体へ保存し、PCソフト終了後も自律制御
 
-<p align="center">
-  <img src="docs/images/oled-monitor.jpg" alt="OLEDによる水温、PWM Duty、RPM表示" width="390">
-  <img src="docs/images/installed-rgb.jpg" alt="水冷PCへの設置例" width="520">
-</p>
-
 ## フェイルセーフ
 
 冷却トラブル時に安全側へ移行するため、次の条件を監視します。
@@ -76,7 +71,7 @@ Water Cooling Deviceは、RP2040を採用し、水温連動ファン制御、回
 | 水温が設定した警告温度を超過 | FAN1／FAN2をDuty 100%に固定 |
 | 水温センサーの断線・短絡・異常値 | FAN1／FAN2をDuty 100%に固定 |
 
-警告温度フェイルセーフは、設定温度より1℃下がるまで解除しないヒステリシス付きです。センサー異常時はOLEDへ `SENSOR ERROR!`、警告温度超過時は `HIGH WATER` を表示します。
+センサー異常時はOLEDへ `SENSOR ERROR!`、警告温度超過時は `HIGH WATER` を表示します。
 
 <table>
   <tr>
@@ -97,6 +92,8 @@ Water Cooling Deviceは、RP2040を採用し、水温連動ファン制御、回
 ## Windowsアプリ
 
 接続中の水温、PWM Duty、RPMをリアルタイム表示し、FAN1／FAN2のファンカーブや警告温度を設定できます。
+
+基本的な水温連動ファン制御は本体だけで動作します。設定は本体ボタンから行うことができ、保存したファンカーブはWindowsアプリを起動していない状態でも継続して使用されます。
 
 > [!IMPORTANT]
 > Windowsアプリの開発・配布における正本は、公開リポジトリ[`WaterCoolingDevice-Windows`](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows)とそのReleaseです。ローカルに保存された旧版ZIPではなく、GitHub上の最新版を基準にしてください。
@@ -126,11 +123,12 @@ Windowsアプリは[`v3.0.1-beta`のRelease](https://github.com/TKSLOTTY/WaterCo
 
 ARGB1とARGB2は独立したLampArrayとして認識されるため、Windows Dynamic Lightingで系統ごとに異なるエフェクトを設定できます。各系統のLED構成は1～64灯の範囲で設定可能です。
 
+Windows 11標準のDynamic Lightingから直接操作できるため、ARGB制御用アプリケーションのインストールは不要です。
+
 SignalRGBでも動作を確認していますが、非公式対応のため、すべての環境やバージョンでの動作を保証するものではありません。
 
 <p align="center">
-  <img src="docs/images/windows-dynamic-lighting.jpg" alt="Windows Dynamic Lightingで2系統を認識" width="48%">
-  <img src="docs/images/signalrgb.jpg" alt="SignalRGBでの動作確認" width="48%">
+  <img src="docs/images/windows-dynamic-lighting.jpg" alt="Windows Dynamic Lightingで2系統を認識" width="620">
 </p>
 
 <details>
@@ -143,6 +141,8 @@ PUMPモード中は、Duty 35%以上かつ300 RPM未満の状態が5秒継続す
 </details>
 
 ## USB識別情報
+
+Windows標準のHID（Human Interface Device）として動作するため、専用USBドライバのインストールは不要です。
 
 - VID: `0x2E8A`
 - PID: `0x1144`
