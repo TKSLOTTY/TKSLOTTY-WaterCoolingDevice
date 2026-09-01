@@ -1,8 +1,9 @@
 # Water Cooling Device with Dynamic Lighting
 
 <p align="center">
-  <strong>水温を見てファンを制御し、ARGBライティングまで一台に。</strong><br>
-  水冷PC向け PWM / ARGB コントローラー
+  <strong>本格水冷PCの水温に連動してファンを制御し、ARGBライティングまで一台に。</strong><br>
+  RP2040搭載 水温連動ファンコントローラー / ARGBコントローラー<br>
+  Windows Dynamic Lighting対応
 </p>
 
 <p align="center">
@@ -11,7 +12,7 @@
 
 ## 製品概要
 
-Water Cooling Deviceは、水温連動PWM制御、回転数監視、OLED表示、ARGB制御を小型ボディに集約した水冷PC向けコントローラーです。ケースによってはマザーボード裏側の配線スペースにも収納できます。
+Water Cooling Deviceは、RP2040を採用し、水温連動ファン制御、回転数監視、OLED表示、2系統のARGB制御を小型ボディに集約した、本格水冷PC向けのファンコントローラー兼ARGBコントローラーです。ARGBはWindows Dynamic Lightingに対応し、ケースによってはマザーボード裏側の配線スペースにも収納できます。
 
 付属する2個のハブにより、**ARGB機器を最大8台 × 2系統**、**4ピンPWMファンを最大8台 × 2系統**、合計各16台まで接続できます。
 
