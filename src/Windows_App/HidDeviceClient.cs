@@ -58,6 +58,7 @@ internal sealed class HidDeviceClient : IDisposable
     public const byte GetFanRpm = 0x30;
     public const byte GetDuty = 0x31;
     public const byte GetWaterTemperature = 0x32;
+    public const byte SetDisplayMode = 0x43;
     public const byte SetDuty1Table = 0x41;
     public const byte SetDuty2Table = 0x42;
     public const byte GetDuty1Table = 0x45;
@@ -74,6 +75,11 @@ internal sealed class HidDeviceClient : IDisposable
     public const byte ApplyLedConfig = 0x4F;
     public const byte SetLedLayout = 0x59;
     public const byte GetLedLayout = 0x5A;
+    public const byte SetHostTemperature = 0x5C;
+    public const byte GetDisplayMode = 0x5D;
+    public const byte SetDisplayInterval = 0x5E;
+    public const byte GetDisplayInterval = 0x5F;
+    public const byte SetHostUsage = 0x60;
     private const int ApplyLedConfigMagic = 0x0044454C;
 
     private static readonly string DeviceLockFolder = Path.Combine(
@@ -191,6 +197,34 @@ internal sealed class HidDeviceClient : IDisposable
         var mode = enabled ? 1 : 0;
         if (await QueryAsync(SetPumpMode, 0, mode) != mode)
             throw new IOException("PUMPモードの確認値が一致しません。");
+    }
+
+    public async Task SendHostTemperaturesAsync(float? cpuCelsius, float? gpuCelsius)
+    {
+        static int Encode(float? value) => value is >= -20 and <= 150
+            ? (int)Math.Round(value.Value * 100, MidpointRounding.AwayFromZero)
+            : 32767;
+
+        var cpu = Encode(cpuCelsius);
+        var gpu = Encode(gpuCelsius);
+        if (await QueryAsync(SetHostTemperature, 0, cpu) != cpu)
+            throw new IOException("CPU温度の送信確認値が一致しません。");
+        if (await QueryAsync(SetHostTemperature, 1, gpu) != gpu)
+            throw new IOException("GPU温度の送信確認値が一致しません。");
+    }
+
+    public async Task SendHostUsageAsync(float? cpuPercent, float memoryPercent)
+    {
+        static int Encode(float? value) => (int)Math.Round(
+            Math.Clamp(value ?? 0, 0, 100) * 100,
+            MidpointRounding.AwayFromZero);
+
+        var cpu = Encode(cpuPercent);
+        var memory = Encode(memoryPercent);
+        if (await QueryAsync(SetHostUsage, 0, cpu) != cpu)
+            throw new IOException("CPU使用率の送信確認値が一致しません。");
+        if (await QueryAsync(SetHostUsage, 1, memory) != memory)
+            throw new IOException("メモリ使用率の送信確認値が一致しません。");
     }
 
     public async Task<(int Port1, int Port2)> ReadLedCountsAsync()

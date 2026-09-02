@@ -46,6 +46,8 @@
 | `0x30 GET_FAN_RPM` | `0`=FAN1、`1`=FAN2 | 回転数 RPM |
 | `0x31 GET_DUTY` | `0`=FAN1、`1`=FAN2 | 現在Duty `0..100` % |
 | `0x32 GET_WATER_TEMP` | `0` | 水温 x100。例: `2834` = 28.34℃。センサー異常は`32767` |
+| `0x5D GET_DISPLAY_MODE` | `0` | OLED表示モード `0..5` |
+| `0x5F GET_DISPLAY_INTERVAL` | `0` | 自動画面の切替時間 `3..30`秒 |
 | `0x45 GET_DUTY1_TABLE` | `0..4` | FAN1カーブ各点のDuty % |
 | `0x46 GET_DUTY2_TABLE` | `0..4` | FAN2カーブ各点のDuty % |
 | `0x47 GET_WARNING_TEMP` | `0` | 警告温度 ℃ |
@@ -64,12 +66,23 @@
 | --- | --- | --- |
 | `0x41 SET_DUTY1_TABLE` | `0..4` | FAN1カーブDuty `0..100` % |
 | `0x42 SET_DUTY2_TABLE` | `0..4` | FAN2カーブDuty `0..100` % |
+| `0x43 SET_DISPLAY_MODE` | `0` | OLED表示モード `0..5` |
+| `0x5E SET_DISPLAY_INTERVAL` | `0` | 自動画面の切替時間 `3..30`秒 |
+| `0x60 SET_HOST_USAGE` | `0`=CPU、`1`=メモリ | 使用率x100 (`0..10000`)。EEPROMへ保存しない一時データ |
 | `0x44 SET_WARNING_TEMP` | `0` | 警告温度 `0..100` ℃ |
 | `0x48 SET_PUMP_MODE` | `0` | `0`=無効、`1`=有効（実験的機能） |
 | `0x49 SET_PUMP_DUTY` | `0` | 固定Duty `35..100` %（実験的機能） |
 | `0x4D SET_LED_COUNT` | `0`=ARGB1、`1`=ARGB2 | LED数 `1..64` |
 | `0x59 SET_LED_LAYOUT` | `0`=ARGB1、`1`=ARGB2 | LEDレイアウトのパック値 |
 | `0x4F APPLY_LED_CONFIG` | `0` | Value=`0x0044454C`。ACK後、約1.2秒でUSB再認識 |
+
+`0x5C SET_HOST_TEMPERATURE`は例外的な一時データ送信コマンドです。
+Channel `0`へCPU、Channel `1`へGPU温度をx100で送り、取得不能時は`32767`を送ります。
+EEPROMへは保存されないため、2秒程度の定期送信に使用できます。最後の受信から10秒で
+ファームウェア側の値は無効になり、該当するOLED温度行は非表示になります。
+
+`0x60 SET_HOST_USAGE`も一時データです。CPU・メモリ使用率をx100で2秒程度ごとに送り、
+最後の受信から10秒でUSB通信なしと判定します。通信なしの自動OLED表示はMode 1～3だけです。
 
 SET系は、正規化して本体が受理した値をResultとして返します。送信値と応答値を照合してからUIへ反映してください。
 

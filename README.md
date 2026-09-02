@@ -107,7 +107,12 @@ Water Cooling Deviceは、RP2040を採用し、水温連動ファン制御、回
 - CPU／GPU温度の取得とOLED表示（任意）
 - Windows起動時の自動起動と通知領域表示
 
-Windowsアプリは[`v3.0.1-beta`のRelease](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/tag/v3.0.1-beta)からダウンロードできます。通常は.NET 8を同梱した**Full版**、すでに.NET 8 Desktop Runtimeを導入している場合は小容量の**Minimal版**を選択してください。C#ソースコードと通信仕様は、このリポジトリの[`src/Windows_App`](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/tree/main/src/Windows_App)で確認できます。
+Windowsアプリは、標準画面を使用する**Windows App v3.0.2**と、通常画面とLUNE画面を切り替えられる**WCD-01 LUNE Edition v1.0.0**から選択できます。
+
+- **Windows App v3.0.2（標準版）:** [Full版](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.0.2/WaterCoolingDevice-Windows-v3.0.2-full.zip) ／ [Minimal版](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.0.2/WaterCoolingDevice-Windows-v3.0.2-minimal.zip) ／ [リリース詳細](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/tag/v3.0.2)
+- **WCD-01 LUNE Edition v1.0.0:** [Full版](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/lune-v1.0.0/WaterCoolingDevice-Windows-LUNE-v1.0.0-full.zip) ／ [Minimal版](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/lune-v1.0.0/WaterCoolingDevice-Windows-LUNE-v1.0.0-minimal.zip) ／ [リリース詳細](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/tag/lune-v1.0.0)
+
+通常は.NET 8を同梱した**Full版**、すでに.NET 8 Desktop Runtimeを導入している場合は小容量の**Minimal版**を選択してください。C#ソースコードと通信仕様は、このリポジトリの[`src/Windows_App`](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/tree/main/src/Windows_App)で確認できます。
 
 > [!NOTE]
 > CPU／GPU温度取得はチェックボックスでON／OFFできます。CPU温度取得には署名済みPawnIOを使用しますが、CPUやマザーボードによっては取得できない場合があります。取得できない温度は表示されません。本アプリはWinRing0を同梱・使用しません。
@@ -190,9 +195,9 @@ VID／PIDは、Raspberry Pi財団より商用利用可能な固定番号とし�
 
 ## ソフトウェア配布
 
-- Windowsアプリ Full: `WaterCoolingDevice-Windows-v3.0.1-beta-full.zip`
-- Windowsアプリ Minimal: `WaterCoolingDevice-Windows-v3.0.1-beta-minimal.zip`
-- Windowsアプリ配布: [`WaterCoolingDevice-Windows`](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows)
+- Windows App v3.0.2: [Full版](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.0.2/WaterCoolingDevice-Windows-v3.0.2-full.zip) ／ [Minimal版](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.0.2/WaterCoolingDevice-Windows-v3.0.2-minimal.zip)
+- WCD-01 LUNE Edition v1.0.0: [Full版](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/lune-v1.0.0/WaterCoolingDevice-Windows-LUNE-v1.0.0-full.zip) ／ [Minimal版](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/lune-v1.0.0/WaterCoolingDevice-Windows-LUNE-v1.0.0-minimal.zip)
+- Windowsアプリ配布・リリースノート: [`WaterCoolingDevice-Windows`](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases)
 - 公開C#ソース: [`src/Windows_App`](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/tree/main/src/Windows_App)
 - AI／カスタムUI向け通信仕様: [`PROTOCOL_REFERENCE.md`](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/blob/main/src/Windows_App/PROTOCOL_REFERENCE.md)
 

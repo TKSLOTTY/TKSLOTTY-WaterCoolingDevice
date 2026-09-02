@@ -2,7 +2,14 @@ namespace WaterCoolingDevice;
 
 internal sealed class MainForm : Form
 {
+    private static readonly string DisplayVersion =
+        Application.ProductVersion.Split('+', 2)[0];
+    private static readonly string BaseWindowTitle =
+        $"Water Cooling Device Controller - PUMP Edition  v{DisplayVersion}";
+
     private readonly HidDeviceClient client = new();
+    private readonly HardwareTemperatureMonitor hardwareTemperatureMonitor = new();
+    private readonly SystemUsageMonitor systemUsageMonitor = new();
     private readonly System.Windows.Forms.Timer refreshTimer = new() { Interval = 1000 };
     private readonly System.Windows.Forms.Timer animationTimer = new() { Interval = 100 };
     private readonly Label deviceSelectorLabel = new() {
@@ -58,13 +65,20 @@ internal sealed class MainForm : Form
         Text = "English", AutoSize = true, Anchor = AnchorStyles.Left
     };
     private readonly CheckBox startupCheckBox = new() {
-        Text = "Windows起動時に起動", AutoSize = true, Anchor = AnchorStyles.Left
+        Text = "Windows起動時に起動", AutoSize = true,
+        Anchor = AnchorStyles.Left
     };
     private readonly CheckBox warningBeepCheckBox = new() {
-        Text = "警告温度でBEEPを鳴らす", AutoSize = true, Anchor = AnchorStyles.Left
+        Text = "警告温度でWindows警告音を鳴らす", AutoSize = true,
+        Anchor = AnchorStyles.Left
     };
     private readonly CheckBox alwaysOnTopCheckBox = new() {
         Text = "常に手前に表示", AutoSize = true, Anchor = AnchorStyles.Left
+    };
+    private readonly Label versionLabel = new() {
+        Text = $"v{DisplayVersion}", AutoSize = true, Anchor = AnchorStyles.Left,
+        ForeColor = Color.LightSkyBlue, Font = new Font("Segoe UI Semibold", 11f),
+        Padding = new Padding(4, 6, 0, 6)
     };
     private readonly CheckBox pumpModeCheckBox = new() {
         Text = "FAN2をPUMPとして使用（実験的機能）", AutoSize = true
@@ -97,6 +111,31 @@ internal sealed class MainForm : Form
     private readonly FlowLayoutPanel matrix2Panel = new() { AutoSize = true };
     private readonly Button saveLedCountButton = new() {
         Text = "LED構成を本体へ保存・適用", AutoSize = true
+    };
+    private readonly Label cpuHostTemperatureLabel = MakeValueLabel(string.Empty, 22);
+    private readonly Label gpuHostTemperatureLabel = MakeValueLabel(string.Empty, 22);
+    private readonly OledModePreviewSelector oledModeSelector = new() {
+        Dock = DockStyle.Fill, MinimumSize = new Size(600, 250)
+    };
+    private readonly NumericUpDown oledIntervalEditor = new() {
+        Minimum = 3, Maximum = 30, Value = 8, Width = 70,
+        TextAlign = HorizontalAlignment.Center
+    };
+    private readonly CheckBox sendHardwareTemperaturesCheckBox = new() {
+        Text = "CPU・GPU温度を取得・表示する", AutoSize = true
+    };
+    private readonly Button installPawnIoButton = new() {
+        Text = "PawnIOをセットアップ", AutoSize = true
+    };
+    private readonly Label pawnIoStatusLabel = new() {
+        AutoSize = true, ForeColor = Color.Silver, Padding = new Padding(6, 7, 0, 0)
+    };
+    private readonly Button saveOledModeButton = new() {
+        Text = "OLED設定を本体へ保存", AutoSize = true
+    };
+    private readonly Label oledSupportLabel = new() {
+        Text = "対応ファームウェアの接続待ち", AutoSize = true,
+        ForeColor = Color.Silver, Padding = new Padding(8, 7, 0, 0)
     };
     private readonly Button warningColorButton = new() {
         Text = "警告温度の色を選択", AutoSize = true
@@ -141,6 +180,10 @@ internal sealed class MainForm : Form
     private DateTime nextReconnectAttemptUtc = DateTime.MinValue;
     private DateTime nextDeviceScanUtc = DateTime.MinValue;
     private int lastSettingsVersion = -1;
+    private bool supportsOledHostTelemetry;
+    private DateTime nextHostTemperatureSendUtc = DateTime.MinValue;
+    private bool updatingStartupCheckBox;
+    private bool updatingHardwareTemperatureCheckBox;
 
     private static readonly Dictionary<string, string> JapaneseToEnglish = new() {
         ["状態表示"] = "Status",
@@ -150,12 +193,17 @@ internal sealed class MainForm : Form
         ["接続デバイス:"] = "Device:",
         ["ファン出力編集"] = "Fan Output Settings",
         ["設定"] = "Settings",
+        ["OLED表示"] = "OLED Display",
         ["再接続"] = "Reconnect",
         ["水温"] = "Coolant Temperature",
         ["センサー故障"] = "Sensor Fault",
         ["再接続待機中"] = "Waiting to reconnect",
         ["センサーエラー - フェイルセーフ作動中（ファン出力 100%）"] =
             "SENSOR ERROR - FAIL-SAFE ACTIVE (FAN OUTPUT 100%)",
+        ["警告温度に達しました - ファン出力 100%"] =
+            "WARNING TEMPERATURE REACHED - FAN OUTPUT 100%",
+        ["警告温度に達しました - ファン／ポンプ出力 100%"] =
+            "WARNING TEMPERATURE REACHED - FAN/PUMP OUTPUT 100%",
         ["ポンプエラー - フェイルセーフ作動中（ポンプ出力 100%）"] =
             "PUMP ERROR - FAIL-SAFE ACTIVE (PUMP OUTPUT 100%)",
         ["ファン1 出力"] = "Fan 1 Output",
@@ -180,8 +228,10 @@ internal sealed class MainForm : Form
         ["温度表示"] = "Temperature Display",
         ["警告音"] = "Warning Sound",
         ["20℃以下の色を選択"] = "Choose Low Temperature Color",
-        ["警告温度でBEEPを鳴らす"] = "Beep at Warning Temperature",
+        ["警告温度でWindows警告音を鳴らす"] =
+            "Play Windows alert sound at warning temperature",
         ["ウィンドウ表示"] = "Window",
+        ["アプリバージョン"] = "App Version",
         ["常に手前に表示"] = "Always on Top",
         ["ファン1 → ファン2へコピー"] = "Copy Fan 1 to Fan 2",
         ["PUMP設定"] = "PUMP Settings",
@@ -203,6 +253,28 @@ internal sealed class MainForm : Form
         ["縦:"] = "Height:",
         ["ジグザグ配線"] = "Serpentine Wiring",
         ["LED構成を本体へ保存・適用"] = "Save and Apply LED Layout",
+        ["CPU温度"] = "CPU Temperature",
+        ["GPU温度"] = "GPU Temperature",
+        ["表示する画面を選択"] = "Choose Display Screen",
+        ["表示モード:"] = "Display Mode:",
+        ["切替時間:"] = "Page Interval:",
+        ["秒"] = "sec",
+        ["CPU・GPU温度を取得・表示する"] = "Acquire and display CPU/GPU temperatures",
+        ["PawnIOをセットアップ"] = "Set up PawnIO",
+        ["OLED設定を本体へ保存"] = "Save OLED Settings to Device",
+        ["対応ファームウェアの接続待ち"] = "Waiting for compatible firmware",
+        ["CPU・マザーボードによってはCPU温度を取得できません。取得できない温度は表示しません。\n" +
+         "画面4はCPU・メモリ使用率、画面5はCPU・GPU温度を表示します。\n" +
+         "温度取得をOFFにすると、画面5だけ選択できません。\n" +
+         "USB通信がない間の自動表示は、画面1～3だけを切り替えます。\n" +
+         "自動画面の切替時間は3～30秒から設定できます。\n" +
+         "水温センサー異常と高水温警告は、OLED設定より常に優先して表示されます。"] =
+            "CPU temperature may be unavailable on some CPUs or motherboards. Unavailable temperatures are hidden.\n" +
+            "Screen 4 shows CPU/memory usage; screen 5 shows CPU/GPU temperatures.\n" +
+            "When temperature acquisition is off, only screen 5 is unavailable.\n" +
+            "Without USB communication, Auto cycles only screens 1–3.\n" +
+            "The automatic page interval can be set from 3 to 30 seconds.\n" +
+            "Coolant sensor faults and high-temperature warnings always take priority over OLED settings.",
         ["設定後に本体が自動再起動し、選択した3D配置をWindowsへ再通知します。"] =
             "The device restarts and reports the selected 3D layout to Windows.",
         ["最小化すると通知領域に現在水温と温度色を表示します。"] =
@@ -211,7 +283,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "Water Cooling Device Controller - PUMP Edition";
+        Text = BaseWindowTitle;
         ClientSize = new Size(980, 680);
         MinimumSize = new Size(820, 580);
         StartPosition = FormStartPosition.CenterScreen;
@@ -222,6 +294,7 @@ internal sealed class MainForm : Form
         var tabs = new StyledTabControl { Dock = DockStyle.Fill };
         tabs.TabPages.Add(BuildMonitorTab());
         tabs.TabPages.Add(BuildEditorTab());
+        tabs.TabPages.Add(BuildOledTab());
         tabs.TabPages.Add(BuildSettingsTab());
         deviceSelectorPanel.Controls.Add(deviceSelectorLabel);
         deviceSelectorPanel.Controls.Add(deviceComboBox);
@@ -237,12 +310,17 @@ internal sealed class MainForm : Form
         refreshTimer.Tick += async (_, _) => await MonitorConnectionAsync();
         animationTimer.Tick += (_, _) => graph.Invalidate();
         animationTimer.Start();
-        Shown += async (_, _) => await ConnectAsync(true);
+        Shown += async (_, _) => {
+            await EnsureHardwareTemperatureAgentAsync(false);
+            MigrateLegacyStartupIfNeeded();
+            await ConnectAsync(true);
+        };
         deviceComboBox.SelectedIndexChanged +=
             async (_, _) => await DeviceSelectionChangedAsync();
         FormClosing += (_, _) => {
             refreshTimer.Stop();
             animationTimer.Stop();
+            hardwareTemperatureMonitor.Dispose();
             client.Dispose();
         };
         FormClosed += (_, _) => {
@@ -258,11 +336,13 @@ internal sealed class MainForm : Form
             isEnglish = englishCheckBox.Checked;
             ApplyLanguage(this);
             UpdateLayoutEditorItems();
+            UpdateOledModeItems();
+            UpdateTemperatureAcquisitionUi();
             RefreshConnectionStatusDisplay();
             appSettings.English = isEnglish;
             appSettings.Save();
         };
-        startupCheckBox.CheckedChanged += (_, _) => StartupManager.SetEnabled(startupCheckBox.Checked);
+        startupCheckBox.CheckedChanged += (_, _) => StartupSettingChanged();
         warningColorButton.Click += (_, _) => ChooseWarningColor();
         lowColorButton.Click += (_, _) => ChooseLowColor();
         warningBeepCheckBox.CheckedChanged += (_, _) => {
@@ -277,6 +357,12 @@ internal sealed class MainForm : Form
         pumpModeCheckBox.CheckedChanged += async (_, _) => await PumpSettingChangedAsync();
         pumpDutyEditor.ValueChanged += async (_, _) => await PumpSettingChangedAsync();
         saveLedCountButton.Click += async (_, _) => await SaveLedCountsAsync();
+        saveOledModeButton.Click += async (_, _) => await SaveOledSettingsAsync();
+        oledIntervalEditor.ValueChanged += (_, _) =>
+            oledModeSelector.PageIntervalSeconds = (int)oledIntervalEditor.Value;
+        sendHardwareTemperaturesCheckBox.CheckedChanged +=
+            async (_, _) => await HardwareTemperatureSettingChangedAsync();
+        installPawnIoButton.Click += async (_, _) => await InstallPawnIoAsync();
         ledLayout1Editor.SelectedIndexChanged += (_, _) => UpdateLedLayoutUi(0);
         ledLayout2Editor.SelectedIndexChanged += (_, _) => UpdateLedLayoutUi(1);
         matrixWidth1Editor.ValueChanged += (_, _) => UpdateMatrixLedCount(0, true);
@@ -292,13 +378,29 @@ internal sealed class MainForm : Form
         warningBeepCheckBox.Checked = appSettings.BeepOnWarning;
         alwaysOnTopCheckBox.Checked = appSettings.AlwaysOnTop;
         TopMost = appSettings.AlwaysOnTop;
+        updatingStartupCheckBox = true;
         startupCheckBox.Checked = StartupManager.IsEnabled();
+        updatingStartupCheckBox = false;
         englishCheckBox.Checked = appSettings.English;
         pumpDutyEditor.Value = Math.Clamp(appSettings.PumpDuty, 35, 100);
         pumpModeCheckBox.Checked = appSettings.Fan2PumpMode;
+        updatingHardwareTemperatureCheckBox = true;
+        sendHardwareTemperaturesCheckBox.Checked = appSettings.SendHardwareTemperatures;
+        updatingHardwareTemperatureCheckBox = false;
+        hardwareTemperatureMonitor.SetEnabled(sendHardwareTemperaturesCheckBox.Checked);
+        oledModeSelector.HardwareTemperaturesEnabled =
+            sendHardwareTemperaturesCheckBox.Checked;
         isEnglish = englishCheckBox.Checked;
         UpdateLayoutEditorItems();
+        UpdateOledModeItems();
+        oledModeSelector.SelectedMode = Math.Clamp(appSettings.OledDisplayMode, 0, 5);
+        oledIntervalEditor.Value = Math.Clamp(
+            appSettings.OledDisplayIntervalSeconds,
+            (int)oledIntervalEditor.Minimum, (int)oledIntervalEditor.Maximum);
+        oledModeSelector.PageIntervalSeconds = (int)oledIntervalEditor.Value;
+        UpdateOledSupportUi();
         ApplyLanguage(this);
+        UpdateTemperatureAcquisitionUi();
         RefreshConnectionStatusDisplay();
         ConfigureTrayIcon();
         editGraph.DutyPointChanged += (_, e) => {
@@ -347,6 +449,80 @@ internal sealed class MainForm : Form
         return page;
     }
 
+    private TabPage BuildOledTab()
+    {
+        var page = NewTab("OLED表示");
+        var root = new TableLayoutPanel {
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4,
+            Padding = new Padding(18)
+        };
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var temperatures = new TableLayoutPanel {
+            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+            Padding = new Padding(0, 4, 0, 8)
+        };
+        temperatures.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        temperatures.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        temperatures.Controls.Add(MakeCard("CPU温度", cpuHostTemperatureLabel), 0, 0);
+        temperatures.Controls.Add(MakeCard("GPU温度", gpuHostTemperatureLabel), 1, 0);
+
+        var previewGroup = new GroupBox {
+            Text = "表示する画面を選択", Dock = DockStyle.Fill,
+            ForeColor = ForeColor, Padding = new Padding(10, 8, 10, 10)
+        };
+        previewGroup.Controls.Add(oledModeSelector);
+
+        var settings = new TableLayoutPanel {
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+            Padding = new Padding(8, 8, 8, 4)
+        };
+        settings.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        settings.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        var temperatureSettings = new FlowLayoutPanel {
+            Dock = DockStyle.Fill, AutoSize = true, WrapContents = true
+        };
+        temperatureSettings.Controls.Add(sendHardwareTemperaturesCheckBox);
+        temperatureSettings.Controls.Add(installPawnIoButton);
+        temperatureSettings.Controls.Add(pawnIoStatusLabel);
+        var displaySettings = new FlowLayoutPanel {
+            Dock = DockStyle.Fill, AutoSize = true, WrapContents = true
+        };
+        displaySettings.Controls.Add(new Label {
+            Text = "切替時間:", AutoSize = true, Padding = new Padding(0, 7, 2, 0)
+        });
+        displaySettings.Controls.Add(oledIntervalEditor);
+        displaySettings.Controls.Add(new Label {
+            Text = "秒", AutoSize = true, Padding = new Padding(0, 7, 6, 0)
+        });
+        displaySettings.Controls.Add(saveOledModeButton);
+        displaySettings.Controls.Add(oledSupportLabel);
+        settings.Controls.Add(temperatureSettings, 0, 0);
+        settings.Controls.Add(displaySettings, 0, 1);
+
+        var explanation = new Label {
+            Dock = DockStyle.Top, AutoSize = true,
+            Text = "CPU・マザーボードによってはCPU温度を取得できません。取得できない温度は表示しません。\n" +
+                   "画面4はCPU・メモリ使用率、画面5はCPU・GPU温度を表示します。\n" +
+                   "温度取得をOFFにすると、画面5だけ選択できません。\n" +
+                   "USB通信がない間の自動表示は、画面1～3だけを切り替えます。\n" +
+                   "自動画面の切替時間は3～30秒から設定できます。\n" +
+                   "水温センサー異常と高水温警告は、OLED設定より常に優先して表示されます。",
+            ForeColor = Color.Silver,
+            Padding = new Padding(12, 10, 12, 8)
+        };
+
+        root.Controls.Add(temperatures, 0, 0);
+        root.Controls.Add(previewGroup, 0, 1);
+        root.Controls.Add(settings, 0, 2);
+        root.Controls.Add(explanation, 0, 3);
+        page.Controls.Add(root);
+        return page;
+    }
+
     private TabPage BuildSettingsTab()
     {
         var page = NewTab("設定");
@@ -390,6 +566,8 @@ internal sealed class MainForm : Form
         panel.Controls.Add(pumpRow, 1, 5);
         panel.Controls.Add(MakeHeader("ARGB LED構成"), 0, 6);
         panel.Controls.Add(BuildLedLayoutPanel(), 1, 6);
+        panel.Controls.Add(MakeHeader("アプリバージョン"), 0, 7);
+        panel.Controls.Add(versionLabel, 1, 7);
         page.Controls.Add(panel);
         return page;
     }
@@ -526,12 +704,13 @@ internal sealed class MainForm : Form
                 Color.LightGreen,
                 connectedSuffix,
                 connectedSuffix);
-            Text = "Water Cooling Device Controller - PUMP Edition" +
+            Text = BaseWindowTitle +
                 (target.HasSerialNumber ? $" — {ShortSerial(target.SerialNumber)}" : string.Empty);
             nextReconnectAttemptUtc = DateTime.MinValue;
             nextDeviceScanUtc = DateTime.UtcNow.AddSeconds(3);
             await LoadTablesAsync();
             await LoadLedCountsAsync();
+            await LoadOledSettingsAsync();
             lastSettingsVersion = await client.QueryAsync(HidDeviceClient.GetSettingsVersion, 0);
             await ApplyPumpSettingsAsync();
             await RefreshStatusAsync();
@@ -539,6 +718,9 @@ internal sealed class MainForm : Form
         catch (Exception ex)
         {
             client.Disconnect();
+            oledModeSelector.SetSystemUsage(null, null);
+            supportsOledHostTelemetry = false;
+            UpdateOledSupportUi();
             nextReconnectAttemptUtc = DateTime.UtcNow.AddSeconds(3);
             SetConnectionStatus(
                 "● 未接続",
@@ -676,11 +858,7 @@ internal sealed class MainForm : Form
                 temperatureLabel.Text = T("センサー\n故障", "Sensor\nFault");
                 temperatureLabel.ForeColor = Color.Salmon;
                 warningAlarmActive = false;
-                failSafeRowStyle.Height = 46;
-                failSafeStatusLabel.Visible = true;
             } else {
-                failSafeStatusLabel.Visible = false;
-                failSafeRowStyle.Height = 0;
                 temperatureLabel.Font = temperatureNormalFont;
                 temperatureLabel.AutoSize = false;
                 temperatureLabel.Dock = DockStyle.Fill;
@@ -690,6 +868,7 @@ internal sealed class MainForm : Form
                     temperature, (float)warningEditor.Value, lowColor, warningColor);
                 UpdateWarningAlarm(temperature);
             }
+            UpdateSafetyBanner();
             UpdateTrayTemperature();
             duty1Label.Text = $"{duty1} %";
             rpm1Label.Text = $"{rpm1} rpm";
@@ -699,10 +878,15 @@ internal sealed class MainForm : Form
             pumpErrorStatusLabel.Visible = pumpFault;
             pumpErrorRowStyle.Height = pumpFault ? 46 : 0;
             graph.SetCurrent(sensorFault ? float.NaN : temperature, duty1, duty2);
+            oledModeSelector.SetDeviceValues(
+                sensorFault ? null : temperature, duty1, duty2, rpm1, rpm2,
+                pumpModeCheckBox.Checked);
+            await RefreshHostTemperaturesAsync();
         }
         catch (Exception ex)
         {
             client.Disconnect();
+            oledModeSelector.SetSystemUsage(null, null);
             nextReconnectAttemptUtc = DateTime.UtcNow.AddSeconds(3);
             SetConnectionStatus(
                 "● 通信エラー",
@@ -716,6 +900,8 @@ internal sealed class MainForm : Form
             failSafeRowStyle.Height = 0;
             pumpErrorStatusLabel.Visible = false;
             pumpErrorRowStyle.Height = 0;
+            supportsOledHostTelemetry = false;
+            UpdateOledSupportUi();
         }
         finally {
             busy = false;
@@ -751,6 +937,7 @@ internal sealed class MainForm : Form
                 (int)warningEditor.Minimum, (int)warningEditor.Maximum);
             graph.SetTables(duty1Table, duty2Table);
             editGraph.SetTables(duty1Table, duty2Table);
+            oledModeSelector.SetDutyTables(duty1Table, duty2Table);
         }
         finally {
             saveButton.Enabled = reloadButton.Enabled = true;
@@ -765,6 +952,229 @@ internal sealed class MainForm : Form
         var layouts = await client.ReadLedConfigurationsAsync();
         SetLedLayoutEditors(0, layouts.Port1);
         SetLedLayoutEditors(1, layouts.Port2);
+    }
+
+    private void UpdateOledModeItems()
+    {
+        oledModeSelector.English = isEnglish;
+    }
+
+    private async Task LoadOledSettingsAsync()
+    {
+        try
+        {
+            var mode = await client.QueryAsync(HidDeviceClient.GetDisplayMode, 0);
+            var interval = await client.QueryAsync(HidDeviceClient.GetDisplayInterval, 0);
+            supportsOledHostTelemetry = mode is >= 0 and <= 5;
+            if (supportsOledHostTelemetry) {
+                oledModeSelector.SelectedMode = mode;
+                oledIntervalEditor.Value = Math.Clamp(interval,
+                    (int)oledIntervalEditor.Minimum, (int)oledIntervalEditor.Maximum);
+            }
+        }
+        catch (TimeoutException)
+        {
+            supportsOledHostTelemetry = false;
+        }
+        UpdateOledSupportUi();
+    }
+
+    private void UpdateOledSupportUi()
+    {
+        oledModeSelector.Enabled = supportsOledHostTelemetry;
+        oledIntervalEditor.Enabled = supportsOledHostTelemetry;
+        sendHardwareTemperaturesCheckBox.Enabled = true;
+        saveOledModeButton.Enabled = supportsOledHostTelemetry;
+        oledSupportLabel.Text = supportsOledHostTelemetry
+            ? T("● OLEDカスタム対応ファーム接続済み", "● OLED customization available")
+            : T("対応ファームウェアの接続待ち", "Waiting for compatible firmware");
+        oledSupportLabel.ForeColor = supportsOledHostTelemetry
+            ? Color.LightGreen : Color.Silver;
+        UpdateTemperatureAcquisitionUi();
+    }
+
+    private async Task HardwareTemperatureSettingChangedAsync()
+    {
+        if (updatingHardwareTemperatureCheckBox) return;
+
+        var enabled = sendHardwareTemperaturesCheckBox.Checked;
+        appSettings.SendHardwareTemperatures = enabled;
+        appSettings.Save();
+        hardwareTemperatureMonitor.SetEnabled(enabled);
+        oledModeSelector.HardwareTemperaturesEnabled = enabled;
+        nextHostTemperatureSendUtc = DateTime.MinValue;
+
+        if (enabled)
+        {
+            await EnsureHardwareTemperatureAgentAsync(true);
+        }
+        else
+        {
+            HardwareTemperatureAgentManager.StopAgent();
+            ClearHostTemperatures();
+            if (supportsOledHostTelemetry && client.IsConnected)
+            {
+                try { await client.SendHostTemperaturesAsync(null, null); }
+                catch { }
+            }
+        }
+        UpdateTemperatureAcquisitionUi();
+    }
+
+    private async Task EnsureHardwareTemperatureAgentAsync(bool offerPawnIoInstall)
+    {
+        if (!sendHardwareTemperaturesCheckBox.Checked) return;
+
+        if (!HardwareTemperatureAgentManager.IsPawnIoInstalled() && offerPawnIoInstall)
+        {
+            var answer = MessageBox.Show(this,
+                T("CPU温度の取得には、LibreHardwareMonitor 0.9.6が採用しているPawnIOが必要です。\n" +
+                  "公式同梱版をセットアップしますか？",
+                  "CPU temperature acquisition requires PawnIO, used by LibreHardwareMonitor 0.9.6.\n" +
+                  "Set up the officially bundled version now?"),
+                T("PawnIOセットアップ", "PawnIO Setup"),
+                MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (answer == DialogResult.Yes)
+                await InstallPawnIoAsync();
+        }
+
+        try
+        {
+            await Task.Run(HardwareTemperatureAgentManager.EnsureTaskAndStart);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                T("温度取得処理を開始できませんでした。\n\n",
+                  "Could not start temperature acquisition.\n\n") + ErrorText(ex),
+                T("温度取得", "Temperature Acquisition"),
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        UpdateTemperatureAcquisitionUi();
+    }
+
+    private async Task InstallPawnIoAsync()
+    {
+        installPawnIoButton.Enabled = false;
+        try
+        {
+            HardwareTemperatureAgentManager.StopAgent();
+            await Task.Run(HardwareTemperatureAgentManager.InstallPawnIo);
+            if (!HardwareTemperatureAgentManager.IsPawnIoInstalled())
+                throw new InvalidOperationException("PawnIO installation could not be confirmed.");
+            if (sendHardwareTemperaturesCheckBox.Checked)
+                await Task.Run(HardwareTemperatureAgentManager.EnsureTaskAndStart);
+            MessageBox.Show(this,
+                T("PawnIOのセットアップが完了しました。",
+                  "PawnIO setup is complete."),
+                T("PawnIOセットアップ", "PawnIO Setup"),
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                T("PawnIOをセットアップできませんでした。\n\n",
+                  "Could not set up PawnIO.\n\n") + ErrorText(ex),
+                T("PawnIOセットアップ", "PawnIO Setup"),
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            UpdateTemperatureAcquisitionUi();
+        }
+    }
+
+    private void UpdateTemperatureAcquisitionUi()
+    {
+        var enabled = sendHardwareTemperaturesCheckBox.Checked;
+        var pawnIoInstalled = HardwareTemperatureAgentManager.IsPawnIoInstalled();
+        installPawnIoButton.Visible = !pawnIoInstalled;
+        installPawnIoButton.Enabled = enabled && !pawnIoInstalled;
+        pawnIoStatusLabel.Text = !enabled
+            ? T("温度取得：OFF", "Temperature acquisition: OFF")
+            : pawnIoInstalled
+                ? T("PawnIO：セットアップ済み", "PawnIO: Ready")
+                : T("PawnIO：未セットアップ（CPU温度を取得できない場合があります）",
+                    "PawnIO: Not installed (CPU temperature may be unavailable)");
+        pawnIoStatusLabel.ForeColor = !enabled || pawnIoInstalled
+            ? Color.Silver : Color.Khaki;
+    }
+
+    private void ClearHostTemperatures()
+    {
+        cpuHostTemperatureLabel.Text = string.Empty;
+        gpuHostTemperatureLabel.Text = string.Empty;
+        cpuHostTemperatureLabel.ForeColor = Color.Silver;
+        gpuHostTemperatureLabel.ForeColor = Color.Silver;
+        oledModeSelector.SetHostTemperatures(null, null);
+    }
+
+    private async Task SaveOledSettingsAsync()
+    {
+        if (!client.IsConnected || !supportsOledHostTelemetry) return;
+        var mode = Math.Clamp(oledModeSelector.SelectedMode, 0, 5);
+        var interval = (int)oledIntervalEditor.Value;
+        saveOledModeButton.Enabled = false;
+        try
+        {
+            var acknowledged = await client.QueryAsync(
+                HidDeviceClient.SetDisplayMode, 0, mode);
+            if (acknowledged != mode)
+                throw new IOException("OLED表示モードの確認値が一致しません。");
+            var acknowledgedInterval = await client.QueryAsync(
+                HidDeviceClient.SetDisplayInterval, 0, interval);
+            if (acknowledgedInterval != interval)
+                throw new IOException("OLED切替時間の確認値が一致しません。");
+            appSettings.OledDisplayMode = mode;
+            appSettings.OledDisplayIntervalSeconds = interval;
+            appSettings.SendHardwareTemperatures = sendHardwareTemperaturesCheckBox.Checked;
+            appSettings.Save();
+            nextHostTemperatureSendUtc = DateTime.MinValue;
+            MessageBox.Show(this,
+                T("OLED表示設定を本体へ保存しました。",
+                  "OLED display settings were saved to the device."),
+                T("保存完了", "Saved"),
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ErrorText(ex),
+                T("OLED設定エラー", "OLED Setting Error"),
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally { UpdateOledSupportUi(); }
+    }
+
+    private async Task RefreshHostTemperaturesAsync()
+    {
+        if (DateTime.UtcNow < nextHostTemperatureSendUtc) return;
+        nextHostTemperatureSendUtc = DateTime.UtcNow.AddSeconds(2);
+
+        var usage = await Task.Run(systemUsageMonitor.Read);
+        oledModeSelector.SetSystemUsage(usage.CpuPercent, usage.MemoryPercent);
+        if (supportsOledHostTelemetry && client.IsConnected)
+            await client.SendHostUsageAsync(usage.CpuPercent, usage.MemoryPercent);
+
+        if (!sendHardwareTemperaturesCheckBox.Checked)
+        {
+            ClearHostTemperatures();
+            return;
+        }
+
+        var snapshot = await Task.Run(hardwareTemperatureMonitor.Read);
+        cpuHostTemperatureLabel.Text = snapshot.CpuCelsius is { } cpu
+            ? $"{cpu:F1} °C" : string.Empty;
+        gpuHostTemperatureLabel.Text = snapshot.GpuCelsius is { } gpu
+            ? $"{gpu:F1} °C" : string.Empty;
+        cpuHostTemperatureLabel.ForeColor = snapshot.CpuCelsius.HasValue
+            ? Color.LightSkyBlue : Color.Salmon;
+        gpuHostTemperatureLabel.ForeColor = snapshot.GpuCelsius.HasValue
+            ? Color.LightSkyBlue : Color.Salmon;
+        oledModeSelector.SetHostTemperatures(snapshot.CpuCelsius, snapshot.GpuCelsius);
+
+        if (supportsOledHostTelemetry && sendHardwareTemperaturesCheckBox.Checked)
+            await client.SendHostTemperaturesAsync(
+                snapshot.CpuCelsius, snapshot.GpuCelsius);
     }
 
     private Control BuildLedLayoutPanel()
@@ -996,6 +1406,7 @@ internal sealed class MainForm : Form
                 throw new IOException("警告温度の確認値が一致しません。");
             graph.SetTables(duty1Table, duty2Table);
             editGraph.SetTables(duty1Table, duty2Table);
+            oledModeSelector.SetDutyTables(duty1Table, duty2Table);
             await Task.Delay(600);
             MessageBox.Show(this,
                 T("ファンカーブと警告温度を保存しました。",
@@ -1021,6 +1432,7 @@ internal sealed class MainForm : Form
         if (fan == 1) duty1Table[point] = (int)duty1Editors[point].Value;
         else duty2Table[point] = (int)duty2Editors[point].Value;
         editGraph.SetTables(duty1Table, duty2Table);
+        oledModeSelector.SetDutyTables(duty1Table, duty2Table);
     }
 
     private void ResetEditorsToDefaults()
@@ -1036,6 +1448,7 @@ internal sealed class MainForm : Form
         duty2Table = (int[])defaults.Clone();
         warningEditor.Value = 55;
         editGraph.SetTables(duty1Table, duty2Table);
+        oledModeSelector.SetDutyTables(duty1Table, duty2Table);
     }
 
     private void CopyFan1ToFan2()
@@ -1048,6 +1461,7 @@ internal sealed class MainForm : Form
         duty1Table = duty1Editors.Select(editor => (int)editor.Value).ToArray();
         duty2Table = (int[])duty1Table.Clone();
         editGraph.SetTables(duty1Table, duty2Table);
+        oledModeSelector.SetDutyTables(duty1Table, duty2Table);
     }
 
     private async Task PumpSettingChangedAsync()
@@ -1162,6 +1576,53 @@ internal sealed class MainForm : Form
         return Color.FromArgb(red, green, blue);
     }
 
+    private void StartupSettingChanged()
+    {
+        if (updatingStartupCheckBox) return;
+        try
+        {
+            StartupManager.SetEnabled(startupCheckBox.Checked);
+        }
+        catch (Exception ex)
+        {
+            RefreshStartupCheckBox();
+            MessageBox.Show(this,
+                T("自動起動を変更できませんでした。\n\n",
+                  "Could not change startup.\n\n") + ErrorText(ex),
+                T("自動起動エラー", "Startup Error"),
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void MigrateLegacyStartupIfNeeded()
+    {
+        try
+        {
+            if (StartupManager.NeedsMigration())
+                StartupManager.MigrateLegacyElevatedStartup();
+            StartupManager.RepairExecutablePathIfEnabled();
+            RefreshStartupCheckBox();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                T("従来の管理者自動起動を通常の自動起動へ移行できませんでした。\n" +
+                  "自動起動設定を一度オフにしてから再度オンにしてください。\n\n",
+                  "Could not migrate elevated startup to normal startup.\n" +
+                  "Turn startup off and then on again.\n\n") +
+                  ErrorText(ex),
+                T("自動起動の移行", "Startup Migration"),
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void RefreshStartupCheckBox()
+    {
+        updatingStartupCheckBox = true;
+        try { startupCheckBox.Checked = StartupManager.IsEnabled(); }
+        finally { updatingStartupCheckBox = false; }
+    }
+
     private void ChooseWarningColor()
     {
         using var dialog = new ColorDialog { Color = warningColor, FullOpen = true };
@@ -1191,13 +1652,42 @@ internal sealed class MainForm : Form
     private void UpdateWarningAlarm(float temperature)
     {
         var threshold = (float)warningEditor.Value;
-        if (temperature >= threshold) {
+        if (temperature > threshold) {
             if (warningBeepCheckBox.Checked && !warningAlarmActive)
-                System.Media.SystemSounds.Exclamation.Play();
+                System.Media.SystemSounds.Hand.Play();
             warningAlarmActive = true;
         } else if (temperature <= threshold - 1f) {
             warningAlarmActive = false;
         }
+    }
+
+    private void UpdateSafetyBanner()
+    {
+        if (!client.IsConnected)
+        {
+            failSafeStatusLabel.Visible = false;
+            failSafeRowStyle.Height = 0;
+            return;
+        }
+
+        if (sensorFault)
+        {
+            failSafeStatusLabel.Text = T(
+                "センサーエラー - フェイルセーフ作動中（ファン出力 100%）",
+                "SENSOR ERROR - FAIL-SAFE ACTIVE (FAN OUTPUT 100%)");
+        }
+        else if (warningAlarmActive)
+        {
+            failSafeStatusLabel.Text = pumpModeCheckBox.Checked
+                ? T("警告温度に達しました - ファン／ポンプ出力 100%",
+                    "WARNING TEMPERATURE REACHED - FAN/PUMP OUTPUT 100%")
+                : T("警告温度に達しました - ファン出力 100%",
+                    "WARNING TEMPERATURE REACHED - FAN OUTPUT 100%");
+        }
+
+        var visible = sensorFault || warningAlarmActive;
+        failSafeStatusLabel.Visible = visible;
+        failSafeRowStyle.Height = visible ? 46 : 0;
     }
 
     private void ConfigureTrayIcon()
@@ -1266,6 +1756,7 @@ internal sealed class MainForm : Form
             if (control.HasChildren) ApplyLanguage(control);
         }
         UpdatePumpUi();
+        UpdateSafetyBanner();
     }
 
     private string ErrorText(Exception ex) => ErrorText(ex, isEnglish);

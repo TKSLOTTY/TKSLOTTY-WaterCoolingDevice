@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Win32;
@@ -13,6 +14,9 @@ internal sealed class AppSettings
     public bool AlwaysOnTop { get; set; }
     public bool Fan2PumpMode { get; set; }
     public int PumpDuty { get; set; } = 60;
+    public int OledDisplayMode { get; set; } = 5;
+    public int OledDisplayIntervalSeconds { get; set; } = 8;
+    public bool SendHardwareTemperatures { get; set; } = true;
 
     [JsonIgnore]
     private AppSettings? baseline;
@@ -97,6 +101,12 @@ internal sealed class AppSettings
             destination.Fan2PumpMode = current.Fan2PumpMode;
         if (current.PumpDuty != original.PumpDuty)
             destination.PumpDuty = current.PumpDuty;
+        if (current.OledDisplayMode != original.OledDisplayMode)
+            destination.OledDisplayMode = current.OledDisplayMode;
+        if (current.OledDisplayIntervalSeconds != original.OledDisplayIntervalSeconds)
+            destination.OledDisplayIntervalSeconds = current.OledDisplayIntervalSeconds;
+        if (current.SendHardwareTemperatures != original.SendHardwareTemperatures)
+            destination.SendHardwareTemperatures = current.SendHardwareTemperatures;
     }
 
     private AppSettings CloneValues()
@@ -115,6 +125,9 @@ internal sealed class AppSettings
         destination.AlwaysOnTop = source.AlwaysOnTop;
         destination.Fan2PumpMode = source.Fan2PumpMode;
         destination.PumpDuty = source.PumpDuty;
+        destination.OledDisplayMode = source.OledDisplayMode;
+        destination.OledDisplayIntervalSeconds = source.OledDisplayIntervalSeconds;
+        destination.SendHardwareTemperatures = source.SendHardwareTemperatures;
     }
 }
 
@@ -122,17 +135,83 @@ internal static class StartupManager
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "WaterCoolingDevice";
+    private const string LegacyElevatedTaskName = "WaterCoolingDevice";
 
     public static bool IsEnabled()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey);
-        return key?.GetValue(ValueName) is string;
+        return key?.GetValue(ValueName) is string || LegacyScheduledTaskExists();
+    }
+
+    public static bool NeedsMigration() => LegacyScheduledTaskExists();
+
+    public static void RepairExecutablePathIfEnabled()
+    {
+        using var key = Registry.CurrentUser.CreateSubKey(RunKey);
+        if (key.GetValue(ValueName) is not string registeredPath) return;
+
+        var expectedPath = $"\"{Application.ExecutablePath}\"";
+        if (!string.Equals(registeredPath, expectedPath, StringComparison.OrdinalIgnoreCase))
+            key.SetValue(ValueName, expectedPath);
     }
 
     public static void SetEnabled(bool enabled)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKey);
-        if (enabled) key.SetValue(ValueName, $"\"{Application.ExecutablePath}\"");
-        else key.DeleteValue(ValueName, false);
+        if (enabled)
+        {
+            key.SetValue(ValueName, $"\"{Application.ExecutablePath}\"");
+        }
+        else
+        {
+            key.DeleteValue(ValueName, false);
+            if (LegacyScheduledTaskExists())
+                RunTaskScheduler("/Delete", "/TN", LegacyElevatedTaskName, "/F");
+        }
     }
+
+    public static void MigrateLegacyElevatedStartup()
+    {
+        if (!LegacyScheduledTaskExists()) return;
+        using (var key = Registry.CurrentUser.CreateSubKey(RunKey))
+            key.SetValue(ValueName, $"\"{Application.ExecutablePath}\"");
+        RunTaskScheduler("/Delete", "/TN", LegacyElevatedTaskName, "/F");
+    }
+
+    private static bool LegacyScheduledTaskExists()
+    {
+        using var process = Process.Start(new ProcessStartInfo {
+            FileName = TaskSchedulerPath(),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            ArgumentList = { "/Query", "/TN", LegacyElevatedTaskName }
+        });
+        if (process is null) return false;
+        process.WaitForExit();
+        return process.ExitCode == 0;
+    }
+
+    private static void RunTaskScheduler(params string[] arguments)
+    {
+        var startInfo = new ProcessStartInfo {
+            FileName = TaskSchedulerPath(),
+            UseShellExecute = true,
+            Verb = "runas",
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);
+
+        using var process = Process.Start(startInfo) ??
+            throw new InvalidOperationException("タスクスケジューラを起動できませんでした。");
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException(
+                $"自動起動タスクを更新できませんでした（終了コード {process.ExitCode}）。");
+    }
+
+    private static string TaskSchedulerPath() => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.System), "schtasks.exe");
+
 }
