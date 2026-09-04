@@ -3,7 +3,8 @@
 <p align="center">
   <strong>本格水冷PCの水温に連動してファンを制御し、ARGBライティングまで一台に。</strong><br>
   RP2040搭載 水温連動ファンコントローラー / ARGBコントローラー<br>
-  Windows Dynamic Lighting対応
+  Windows Dynamic Lighting対応<br>
+  <a href="https://tkslotty.github.io/TKSLOTTY-WaterCoolingDevice/"><strong>公式製品ページを見る</strong></a>
 </p>
 
 <p align="center">
