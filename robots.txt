@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://tkslotty.github.io/TKSLOTTY-WaterCoolingDevice/sitemap.xml
+Sitemap: https://tkslotty.github.io/TKSLOTTY-WaterCoolingDevice/sitemap.txt
