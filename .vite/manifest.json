@@ -1,4 +1,44 @@
 {
+  "../../../../2026-09-04/referenced-chatgpt-conversation-this-is-an/outputs/tkslotty-site/node_modules/.pnpm/lucide-react@1.31.0_react@19.2.6/node_modules/lucide-react/dist/esm/Icon.mjs": {
+    "file": "_next/static/chunks/Icon-BFIcK819.js",
+    "name": "Icon",
+    "src": "../../../../2026-09-04/referenced-chatgpt-conversation-this-is-an/outputs/tkslotty-site/node_modules/.pnpm/lucide-react@1.31.0_react@19.2.6/node_modules/lucide-react/dist/esm/Icon.mjs",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-C60lm6uB.js",
+      "_framework-D_rUT4EX.js"
+    ]
+  },
+  "../../../../2026-09-04/referenced-chatgpt-conversation-this-is-an/outputs/tkslotty-site/node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/internal/app-route-prefetch-policy.js": {
+    "file": "_next/static/chunks/app-route-prefetch-policy-D0LBL1_n.js",
+    "name": "app-route-prefetch-policy",
+    "src": "../../../../2026-09-04/referenced-chatgpt-conversation-this-is-an/outputs/tkslotty-site/node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/internal/app-route-prefetch-policy.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "virtual:vinext-app-browser-entry"
+    ]
+  },
+  "../../../../2026-09-04/referenced-chatgpt-conversation-this-is-an/outputs/tkslotty-site/node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/layout-segment-context.js": {
+    "file": "_next/static/chunks/layout-segment-context-Dr0cLfHK.js",
+    "name": "layout-segment-context",
+    "src": "../../../../2026-09-04/referenced-chatgpt-conversation-this-is-an/outputs/tkslotty-site/node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/layout-segment-context.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-C60lm6uB.js",
+      "virtual:vinext-app-browser-entry",
+      "_framework-D_rUT4EX.js"
+    ]
+  },
+  "../../../../2026-09-04/referenced-chatgpt-conversation-this-is-an/outputs/tkslotty-site/node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/streamed-icons.js": {
+    "file": "_next/static/chunks/streamed-icons-Bumrcy-j.js",
+    "name": "streamed-icons",
+    "src": "../../../../2026-09-04/referenced-chatgpt-conversation-this-is-an/outputs/tkslotty-site/node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/streamed-icons.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-C60lm6uB.js",
+      "_framework-D_rUT4EX.js"
+    ]
+  },
   "_framework-D_rUT4EX.js": {
     "file": "_next/static/chunks/framework-D_rUT4EX.js",
     "name": "framework",
@@ -10,48 +50,8 @@
     "file": "_next/static/chunks/rolldown-runtime-C60lm6uB.js",
     "name": "rolldown-runtime"
   },
-  "node_modules/.pnpm/lucide-react@1.31.0_react@19.2.6/node_modules/lucide-react/dist/esm/Icon.mjs": {
-    "file": "_next/static/chunks/Icon-BFIcK819.js",
-    "name": "Icon",
-    "src": "node_modules/.pnpm/lucide-react@1.31.0_react@19.2.6/node_modules/lucide-react/dist/esm/Icon.mjs",
-    "isDynamicEntry": true,
-    "imports": [
-      "_rolldown-runtime-C60lm6uB.js",
-      "_framework-D_rUT4EX.js"
-    ]
-  },
-  "node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/internal/app-route-prefetch-policy.js": {
-    "file": "_next/static/chunks/app-route-prefetch-policy-kj7G-WnC.js",
-    "name": "app-route-prefetch-policy",
-    "src": "node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/internal/app-route-prefetch-policy.js",
-    "isDynamicEntry": true,
-    "imports": [
-      "virtual:vinext-app-browser-entry"
-    ]
-  },
-  "node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/layout-segment-context.js": {
-    "file": "_next/static/chunks/layout-segment-context-DpB4NHVd.js",
-    "name": "layout-segment-context",
-    "src": "node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/layout-segment-context.js",
-    "isDynamicEntry": true,
-    "imports": [
-      "_rolldown-runtime-C60lm6uB.js",
-      "virtual:vinext-app-browser-entry",
-      "_framework-D_rUT4EX.js"
-    ]
-  },
-  "node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/streamed-icons.js": {
-    "file": "_next/static/chunks/streamed-icons-Bumrcy-j.js",
-    "name": "streamed-icons",
-    "src": "node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/streamed-icons.js",
-    "isDynamicEntry": true,
-    "imports": [
-      "_rolldown-runtime-C60lm6uB.js",
-      "_framework-D_rUT4EX.js"
-    ]
-  },
   "virtual:vinext-app-browser-entry": {
-    "file": "_next/static/chunks/index-BSvwdK0P.js",
+    "file": "_next/static/chunks/index-B6o4TQFT.js",
     "name": "index",
     "src": "virtual:vinext-app-browser-entry",
     "isEntry": true,
@@ -60,11 +60,11 @@
       "_framework-D_rUT4EX.js"
     ],
     "dynamicImports": [
-      "node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/internal/app-route-prefetch-policy.js",
-      "node_modules/.pnpm/lucide-react@1.31.0_react@19.2.6/node_modules/lucide-react/dist/esm/Icon.mjs",
+      "../../../../2026-09-04/referenced-chatgpt-conversation-this-is-an/outputs/tkslotty-site/node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/internal/app-route-prefetch-policy.js",
+      "../../../../2026-09-04/referenced-chatgpt-conversation-this-is-an/outputs/tkslotty-site/node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/streamed-icons.js",
       "virtual:vinext-app-browser-entry",
-      "node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/streamed-icons.js",
-      "node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/layout-segment-context.js"
+      "../../../../2026-09-04/referenced-chatgpt-conversation-this-is-an/outputs/tkslotty-site/node_modules/.pnpm/vinext@1.0.0-beta.5_@vitejs_40d439d6b2e7dd3bcbf8b4d298c350de/node_modules/vinext/dist/shims/layout-segment-context.js",
+      "../../../../2026-09-04/referenced-chatgpt-conversation-this-is-an/outputs/tkslotty-site/node_modules/.pnpm/lucide-react@1.31.0_react@19.2.6/node_modules/lucide-react/dist/esm/Icon.mjs"
     ]
   }
 }
