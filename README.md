@@ -1,20 +1,31 @@
-# TKSLOTTY Water Cooling Device
+# Water Cooling Device for Windows — v3.1.0
 
-## [⬇ Windows App Download — ZIPをダウンロード](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.0.2/WaterCoolingDevice-Windows-v3.0.2-full.zip)
+標準版とLUNE Editionを1つのアプリに統合しました。
 
-**標準版 v3.0.2・Full版（推奨）／Windows 11 x64／.NET 8同梱**
+## ダウンロード / Download
 
-ZIPをすべて展開し、`WaterCoolingDevice.exe`を実行してください。
+- **[Full版（推奨・.NET 8同梱）](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.1.0/WaterCoolingDevice-Windows-v3.1.0-full.zip)**
+- [Minimal版（.NET 8 Desktop Runtimeが必要）](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.1.0/WaterCoolingDevice-Windows-v3.1.0-minimal.zip)
+- [更新履歴・SHA-256](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/tag/v3.1.0)
 
-| その他のダウンロード | Full（.NET 8同梱） | Minimal |
-| --- | --- | --- |
-| 標準版 v3.0.2 | [ZIP](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.0.2/WaterCoolingDevice-Windows-v3.0.2-full.zip) | [ZIP](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.0.2/WaterCoolingDevice-Windows-v3.0.2-minimal.zip) |
-| LUNE Edition v1.0.0（LUNE画面に切替可能） | [ZIP](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/lune-v1.0.0/WaterCoolingDevice-Windows-LUNE-v1.0.0-full.zip) | [ZIP](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/lune-v1.0.0/WaterCoolingDevice-Windows-LUNE-v1.0.0-minimal.zip) |
+Windows 11 x64向け。ZIPをすべて展開し、WaterCoolingDevice.exeを実行してください。
+初回は通常の状態表示で起動します。
 
-Minimal版は.NET 8 Desktop Runtimeの事前インストールが必要です。迷った場合は冒頭のFull版を選んでください。
+## LUNE Studio
 
-**[最新版・更新履歴・チェックサム（WindowsアプリのReleases）](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases)**  
-Windowsアプリの正式な配布先は上記Releasesです。このリポジトリの旧版Releasesや「Source code (zip)」は、現在のアプリのダウンロード先ではありません。
+設定の「LUNE Studioを有効にする」でテーマ機能が使えます。
+サムネイルから選択し「Windowsに表示」で開きます。次回起動時の自動表示は別設定です。
+対応USB液晶への表示、縦横・180度反転・明るさ、文字・背景・小さなGIFの編集と保存に対応します。
+USB表示は動作確認済み3.5インチ機器向けです。すべてのUSB液晶への対応を保証するものではありません。
+純正UsbMonitorは完全に終了してから接続してください。
+
+内蔵LUNE・CYBER HUDに加え、White Cooling、Neon Overdrive、Thermionic Console、Soft Signal、Obsidian Flow、Prism Grid、Pop Spark、Pop Spark Chibiを同梱しています。
+保存先は `%LOCALAPPDATA%\WaterCoolingDevice\LuneThemes`。既存テーマを上書きせず、削除した同梱テーマも自動復活しません。
+再登録したい場合はアプリのThemesフォルダからテーマファイルを読み込めます。
+
+本体の水温連動ファン制御・OLED・ARGB設定は引き続き利用できます。CPU/GPU温度取得には環境依存があります。CPU温度には同梱のPawnIOが必要な場合があります。
+本体制御には対応するWater Cooling Device本体・ファームウェアが必要です。ファームウェアの変更・同梱はありません。
+
 
 ## 製品について
 

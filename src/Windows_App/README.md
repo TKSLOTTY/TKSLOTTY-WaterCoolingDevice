@@ -1,207 +1,24 @@
-# Water Cooling Device - Windows App Source
+# Water Cooling Device — Windows App Source v3.1.0
 
-v3.0.2では、タイトルバーと設定画面にアプリのバージョンを表示します。
-また、更新版を別フォルダへ展開して起動した場合、Windows自動起動が有効なら登録先を
-現在の実行ファイルへ自動修復します。警告温度を超えて本体の100%出力保護が作動した場合は、
-センサー故障と同じ赤い警告帯へ状態を表示し、任意でWindows標準の重大な警告音を1回鳴らします。
+標準版とLUNE Studioを統合したC# / Windows Formsソースです。
+[利用方法 / User guide](APP_GUIDE.md)・[通信仕様](PROTOCOL_REFERENCE.md)を参照してください。
 
-v3.0.1-betaでは、アプリ再起動時に温度取得タスクを停止・再起動する競合により、
-最初の数秒だけCPU/GPU温度が表示された後に更新が止まる問題を修正しました。
-正常に動作中の温度取得処理は再利用し、再起動が必要な場合は旧処理の終了を待ってから
-起動します。タスク起動要求がWindowsに無視された場合は自動的に再試行します。
+## Build
 
-v3.0.0-betaは、一般公開する最初のベータ版です。.NET 8 Desktop Runtimeを使用する
-最小構成版と、.NET 8を同梱してそのまま起動できるフル構成版の2種類を配布します。
-
-v2.8.0-preview.14では、OLED画面選択の「初代」という開発用の呼び方を廃止し、
-「総合表示」「FAN1カーブ」「FAN2／PUMPカーブ」という機能名へ変更しました。
-
-v2.8.0-preview.13では、画面1～3を初代ファームの外観へ戻しました。画面4は
-CPU・メモリ使用率、画面5はCPU・GPU温度です。自動表示はUSB通信がない間は画面1～3だけ、
-通信中は画面1～3→大きい水温（横線なし）→画面4→画面5の順に切り替わります。
-温度取得OFF時も画面4は使用でき、画面5だけを無効化します。
-
-v2.7.2-preview.12では、通常権限の画面と管理者権限の温度取得処理の受け渡しを、
-権限差の影響を受けないローカル温度スナップショット方式へ変更しました。
-配布版は.NET 8 Desktop Runtimeを同梱しない最小構成を標準とします。
-
-v2.7.1-preview.11では、FAN1/FAN2の個別画面をpreview.9までのカーブグラフへ戻し、
-CPU/GPU温度を含まないFAN1＋FAN2統合画面を追加しました。CPUとGPUは専用画面だけに
-表示します。また、PawnIOセットアップ後も温度取得チェックボックスが必ず見えるよう、
-温度取得設定を独立した行へ固定しました。
-
-v2.7.0-preview.10では、0.96インチOLED向けに通常表示を全面刷新しました。
-6画面を「自動／水温／FAN1 Duty・RPM／FAN2・PUMP Duty・RPM／CPUのみ／GPUのみ」へ
-整理し、数値を画面いっぱいに大型表示します。自動表示ではCPUとGPUを別ページにし、
-取得できない側のページだけを自動的に省略します。
-
-v2.6.0-preview.9では、LibreHardwareMonitorLibを0.9.6、HidSharpを2.6.4へ更新し、
-旧WinRing0を廃止しました。CPU/GPU温度取得はチェックボックスで完全にON/OFFでき、
-OFF時は温度取得処理を停止して、CPU/GPU温度を含むOLED画面も選択できません。
-CPU温度に必要なPawnIOは公式v0.9.6同梱版をアプリ画面からセットアップできます。
-画面本体は通常権限、温度取得処理だけを非表示の管理者タスクとして実行します。
-
-v2.5.2-preview.8では、OLED設定タブ下部の説明文が見切れる問題を修正し、
-文章量に合わせて説明欄の高さを自動調整するようにしました。また、English選択時にも
-この説明文だけ日本語のまま残っていた問題を修正しました。
-
-v2.5.1-preview.7では、取得できないCPU/GPU温度の`--.- °C`表示を廃止しました。
-取得できない側の行はOLEDとプレビューから消え、両方取得できない場合は自動表示から
-CPU/GPUページを省略します。
-
-v2.5.0-preview.6では、Windows自動起動を通常権限のレジストリ登録から、
-ログオン時に最上位権限で実行するWindowsタスクへ変更しました。
-初回登録または従来設定からの移行時だけUAC確認が表示され、以後の自動起動では
-管理者権限でCPU温度を取得できます。
-
-v2.4.1-preview.5では、自動モードのプレビュー切替時間を下の秒数設定へ連動させ、
-プレビュー内のOLED表示色を実機に合わせた青色へ変更しました。
-
-v2.4.0-preview.4では、OLED表示モードを実画面に近い6種類のプレビューから
-クリックして選択できるようにしました。自動モードのプレビューは画面が順番に切り替わり、
-接続中は水温・Duty・RPM・CPU/GPU温度とファンカーブを現在値へ更新します。
-
-v2.3.0-preview.3では、OLED切替時間を3～30秒から設定可能にし、初期値を8秒にしました。
-また、ファンカーブ交点の円点滅、℃／%表記、FAN1/FAN2 EDIT書式を復元しました。
-
-v2.3.0-preview.2では、0.96インチOLED向けに、水温→RPM1/2→CPU/GPU温度を
-大きな文字で切り替える自動表示を追加しました。
-
-v2.3.0-preview.1では、CPU/GPU温度取得と本体OLEDカスタム表示を追加しました。
-LibreHardwareMonitorLib 0.9.4を使用し、対応ファームへ2秒ごとに温度を送信します。
-
-v2.2.2では、Windowsのシャットダウン時にHID通信の終了待ちでアプリが停止し、電源オフを妨げる問題を修正しました。
-
-v2.2.1では、ダークテーマで見えにくかったARGB1／ARGB2の枠タイトルを白文字へ変更し、`Duty Table編集`タブを`ファン出力編集`へ改名しました。
-
-購入者が表示、配色、グラフ、レイアウトなどをカスタマイズするためのWindowsアプリソースです。
-
-## 必要な環境
-
-- Windows 11
-- Visual Studio 2022（「.NET デスクトップ開発」を選択）または .NET 8 SDK
-- インターネット接続（初回のHidSharp／LibreHardwareMonitor復元時）
-
-## 配布方針
-
-- 最小構成版は`--self-contained false`で配布し、実行するPCには.NET 8 Desktop Runtimeが必要です。
-- フル構成版は`--self-contained true`で配布し、.NETが未導入のPCでも起動できます。
-- どちらにもデバッグシンボルとWinRing0は含めません。
-
-## ビルド
-
-1. `WaterCoolingDevice.csproj` をVisual Studioで開きます。
-2. 構成を `Release`、対象を `x64` にします。
-3. 「ビルド」から「ソリューションのビルド」を実行します。
-
-コマンドを使用する場合:
+Windows x64、.NET 8 SDKが必要です。
 
 ```powershell
-dotnet restore
 dotnet build -c Release
+dotnet publish -c Release -r win-x64 --self-contained true -o publish/full
+dotnet publish -c Release -r win-x64 --self-contained false -o publish/minimal
 ```
 
-## 主なファイル
+Themesフォルダの8テーマは初回登録されます。ユーザー設定は配布しません。
+The bundled themes are registered without overwriting user edits. User settings are not distributed.
 
-- `MainForm.cs`: 画面、タブ、設定、通知領域
-- `OledModePreviewSelector.cs`: OLED表示モードの選択用プレビュー
-- `DutyGraphControl.cs`: ファンカーブグラフ
-- `StyledTabControl.cs`: タブの外観
-- `HidDeviceClient.cs`: 本体とのUSB HID通信
-- `PROTOCOL_REFERENCE.md`: AIやカスタムUI向けの通常機能Vendor HID仕様
-- `AppSettings.cs`: Windows側設定の保存
-- `HardwareTemperatureMonitor.cs`: 温度取得タスクとの通信とCPU/GPUセンサー読取
-- `HardwareTemperatureAgent.cs`: 非表示の温度取得処理
-- `HardwareTemperatureAgentManager.cs`: PawnIOと温度取得タスクの管理
-- `SystemUsageMonitor.cs`: Windows APIによるCPU・メモリ使用率取得
+## Validation
 
-## OLED表示とCPU/GPU温度
-
-- `OLED表示`タブで、大文字の実画面に近い6種類のプレビューをクリックして表示モードを選べます。
-- Mode 1～3は初代と同じ総合／FAN1／FAN2・PUMP画面です。
-- Mode 4はCPU・メモリ使用率、Mode 5はCPU・GPU温度を1画面に表示します。
-- `CPU・GPU温度を取得・表示する`がONのときだけ、2秒ごとにVendor HIDで本体へ送信します。
-- CPU・メモリ使用率は温度取得設定に関係なく送信し、OFF時はMode 5だけ選択できません。
-- USB通信が10秒間ない場合、本体の自動表示はMode 1～3だけに戻ります。
-- アプリ終了または通信切断から10秒後、本体は無効になったCPU/GPU温度を表示しません。
-- 水温センサー異常と高水温警告は、OLED表示設定より常に優先されます。
-- CPU・マザーボードの組み合わせによっては、PawnIOを使用してもCPU温度を取得できません。
-  取得できない温度はアプリ、本体、プレビューのいずれにも表示しません。
-- CPU温度取得にはPawnIOが必要です。アプリの`PawnIOをセットアップ`から、
-  LibreHardwareMonitor v0.9.6公式同梱の署名済みセットアップを実行できます。
-- アプリ画面は通常権限で動作し、温度取得だけを非表示の管理者タスクで行います。
-- Windows自動起動も通常権限です。旧版の管理者自動起動タスクは初回起動時に移行します。
-- この版はWinRing0ドライバーを同梱・使用しません。
-
-通常機能のコマンド、パケット形式、値の単位は`PROTOCOL_REFERENCE.md`を参照してください。工場検査・検査証書・復旧用のシステムコマンドは対象外です。
-
-> **重要:** SET系コマンドを監視ループへ入れないでください。設定はEEPROM領域（RP2040内蔵フラッシュ）へ保存されるため、定期的な再送は不要な書き込みと寿命低下の原因になります。監視ループはGET系だけにし、SET系は値が実際に変わったときだけ送信してください。
-
-## センサー故障表示
-
-本体から取得した水温が `-20°C未満`または`70°C超`の場合、温度欄に
-`センサー故障`（英語表示では `Sensor Fault`）と表示します。
-通知領域アイコンは赤色の `!` になります。
-
-この版は現在の本体と互換性のあるVendor HID Report ID `7`を使用します。
-対応する本体ファームウェアも同じReport IDに設定されています。
-
-接続対象はVendor ID `0x2E8A`、Product ID `0x1144`です。
-
-## 複数台接続
-
-- 同じVID/PIDの本体をUSBシリアル番号で個体識別します。
-- 1台だけ検出した場合は従来どおり自動接続し、デバイス選択欄は表示しません。
-- 2台以上を検出した場合は画面上部に選択欄を表示し、製品名とUSBシリアル番号を並べます。
-- 選択を変更すると現在のHID通信を閉じてから、選択した本体へ接続し直します。
-- 自動再接続では、現在のアプリで選択したUSBシリアル番号を優先します。
-- アプリは複数起動できます。別個体は別々のアプリから同時制御できますが、同じ個体を
-  二重に開こうとすると「他のアプリで使用中」と表示します。
-
-安定した個体識別には、本体ファームウェアが個体ごとに異なるUSB Serial Numberを
-公開している必要があります。シリアル番号がない本体も現在のUSBパスで一時的に選択
-できますが、抜き差しや再起動をまたぐ同一個体の保証はできません。
-
-Windows側設定はプロセス間ロックを使用して保存し、一時ファイルから置き換えるため、
-複数起動時に同時保存してもJSONが途中で壊れない設計です。
-
-## PUMPモード
-
-- FAN2端子をPWMポンプ用の固定Duty出力として使用できます。
-- 設定範囲は35～100%です。
-- PUMPモード中はFAN2カーブ編集が無効になります。
-- 回転数が300 RPM未満の状態が5秒続くと、本体のフェイルセーフが出力を100%にします。
-- 対応するPWMポンプで、確実に始動・連続回転できるDutyを実機で確認してください。
-
-USB切断または通信エラーを検出すると通信ストリームを閉じ、3秒後から自動的に
-再接続を試みます。再接続後は本体設定と現在状態を自動で再取得します。
-
-## ARGB LED構成
-
-- 設定画面でGPIO 0とGPIO 1をそれぞれ「ファン（円形）」「LEDテープ（直線）」「マトリックス」から選択できます。
-- ファンとLEDテープは1～64 LED、マトリックスは横×縦が64 LED以下になるよう設定できます。
-- マトリックスは1行ごとに信号方向が反転するジグザグ配線にも対応します。
-- ［LED構成を本体へ保存・適用］を押すと、本体Flashへ保存して自動再起動します。
-- 次回起動時も保存したLED数を読み込み、Windows Dynamic Lightingへ同じ灯数を公開します。
-- 選択した形式から円形・直線・格子の3D座標を生成し、Windowsへ通知します。
-- 直列接続されているLEDの実数を指定してください。並列ARGBハブで同じ信号を複製するファン台数は、LED数へ足しません。
-- LED数の変更後はUSB機器情報を更新するため本体が一度再起動し、アプリが自動再接続します。
-
-配置形式の選択には対応ファームウェアが必要です。初期値はGPIO 0、GPIO 1ともファン（円形）・6 LEDです。
-
-## 出荷時ファンカーブ
-
-アプリの起動時表示と［初期値に戻す］は、ファームと同じ次の値です。
-
-```text
-Duty: 10, 20, 30, 50, 70
-Warning temperature: 55°C
-```
-
-## 注意
-
-- 通信コマンド、VID/PID、レポート形式を変更すると本体と通信できなくなる場合があります。
-- 本体ファームウェアのソースコードは付属しません。
-- 改造前にフォルダー全体をバックアップしてください。
-- 改造版アプリは製品保証および通常サポートの対象外です。
-- 再配布や販売については `../Licenses/SourceLicense.txt` を確認してください。
+`--test-studio-flow` checks optional Studio activation, language switching, desktop display and disable behavior without saving Studio settings.
+`--test-lune-panel` checks the panel protocol and renderer.
+`--smoke-test-theme-editor` checks editor startup.
+Run validation in a disposable output folder because it generates previews and test results.

@@ -7,15 +7,24 @@
     <Nullable>enable</Nullable>
     <AssemblyName>WaterCoolingDevice</AssemblyName>
     <RootNamespace>WaterCoolingDevice</RootNamespace>
-    <Product>Water Cooling Device</Product>
-    <Title>Water Cooling Device</Title>
-    <Version>3.0.2</Version>
-    <AssemblyVersion>3.0.2.0</AssemblyVersion>
-    <FileVersion>3.0.2.0</FileVersion>
+    <Product>Water Cooling Device - WCD-01</Product>
+    <Title>Water Cooling Device - WCD-01</Title>
+    <Version>3.1.0</Version>
+    <AssemblyVersion>3.1.0.0</AssemblyVersion>
+    <FileVersion>3.1.0.0</FileVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="HidSharp" Version="2.6.4" />
+    <PackageReference Include="System.IO.Ports" Version="10.0.3" />
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\LuneNormal.png" />
+    <EmbeddedResource Include="Assets\LuneWarm.png" />
+    <EmbeddedResource Include="Assets\LuneCritical.png" />
+    <EmbeddedResource Include="Assets\LuneNormalBlink.png" />
+    <EmbeddedResource Include="Assets\LuneWarmBlink.png" />
+    <EmbeddedResource Include="Assets\LuneCriticalBlink.png" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Tools\PawnIO_setup.exe">
@@ -26,5 +35,11 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
+    <Content Include="README.md">
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Themes\*.lunetheme" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

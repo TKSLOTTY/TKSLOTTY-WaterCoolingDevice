@@ -1,16 +1,17 @@
 namespace WaterCoolingDevice;
 
-internal sealed class MainForm : Form
+internal sealed partial class MainForm : Form
 {
     private static readonly string DisplayVersion =
         Application.ProductVersion.Split('+', 2)[0];
     private static readonly string BaseWindowTitle =
-        $"Water Cooling Device Controller - PUMP Edition  v{DisplayVersion}";
+        $"Water Cooling Device Controller - WCD-01  v{DisplayVersion}";
 
     private readonly HidDeviceClient client = new();
     private readonly HardwareTemperatureMonitor hardwareTemperatureMonitor = new();
     private readonly SystemUsageMonitor systemUsageMonitor = new();
     private readonly System.Windows.Forms.Timer refreshTimer = new() { Interval = 1000 };
+    private readonly System.Windows.Forms.Timer hostTelemetryTimer = new() { Interval = 2000 };
     private readonly System.Windows.Forms.Timer animationTimer = new() { Interval = 100 };
     private readonly Label deviceSelectorLabel = new() {
         Text = "接続デバイス:", AutoSize = true, Padding = new Padding(0, 7, 6, 0)
@@ -26,6 +27,9 @@ internal sealed class MainForm : Form
     private readonly Font temperatureNormalFont = new("Segoe UI Semibold", 22f);
     private readonly Font temperatureFaultFont = new("Segoe UI Semibold", 14f);
     private readonly Label connectionLabel = MakeValueLabel("未接続", 12);
+    private readonly Button luneViewButton = new() {
+        Text = "LUNE画面へ", AutoSize = true
+    };
     private readonly Label temperatureLabel = MakeValueLabel("--.-- °C", 22);
     private readonly Label duty1Label = MakeValueLabel("--- %", 22);
     private readonly Label rpm1Label = MakeValueLabel("----- rpm", 22);
@@ -164,6 +168,17 @@ internal sealed class MainForm : Form
     private Color warningColor;
     private Color lowColor;
     private float currentTemperature;
+    private float? currentCpuTemperature;
+    private float? currentGpuTemperature;
+    private float? currentGpuUsage;
+    private string? currentCpuName;
+    private string? currentGpuName;
+    private float? currentCpuUsage;
+    private float? currentMemoryUsage;
+    private float? currentFan1Duty;
+    private float? currentFan1Rpm;
+    private float? currentFan2Duty;
+    private float? currentFan2Rpm;
     private Icon? generatedTrayIcon;
     private bool warningAlarmActive;
     private bool sensorFault;
@@ -184,6 +199,8 @@ internal sealed class MainForm : Form
     private DateTime nextHostTemperatureSendUtc = DateTime.MinValue;
     private bool updatingStartupCheckBox;
     private bool updatingHardwareTemperatureCheckBox;
+    private bool applicationClosing;
+    private LuneForm? luneForm;
 
     private static readonly Dictionary<string, string> JapaneseToEnglish = new() {
         ["状態表示"] = "Status",
@@ -195,6 +212,7 @@ internal sealed class MainForm : Form
         ["設定"] = "Settings",
         ["OLED表示"] = "OLED Display",
         ["再接続"] = "Reconnect",
+        ["LUNE画面へ"] = "Open LUNE View",
         ["水温"] = "Coolant Temperature",
         ["センサー故障"] = "Sensor Fault",
         ["再接続待機中"] = "Waiting to reconnect",
@@ -278,11 +296,34 @@ internal sealed class MainForm : Form
         ["設定後に本体が自動再起動し、選択した3D配置をWindowsへ再通知します。"] =
             "The device restarts and reports the selected 3D layout to Windows.",
         ["最小化すると通知領域に現在水温と温度色を表示します。"] =
-            "When minimized, the notification area shows coolant temperature and its color."
+            "When minimized, the notification area shows coolant temperature and its color.",
+        ["LUNE・CYBER HUD・自作テーマをWindows画面に表示できます。\n" +
+         "TURZXを接続すると、同じ画面をPC画面外へ表示できます。"] =
+            "Display LUNE, CYBER HUD, and custom themes in a Windows window.\n" +
+            "Connect a TURZX to display the same screen outside your PC monitor.",
+        ["外部表示できない場合：純正UsbMonitorがCOMポートを使用中です。\n" +
+         "通知領域も確認してUsbMonitorを完全に終了し、TURZXを抜き差ししてから再試行してください。"] =
+            "If external output is unavailable, UsbMonitor may be using the COM port.\n" +
+            "Check the notification area, fully close UsbMonitor, reconnect the TURZX, and try again.",
+        ["テーマ"] = "Theme",
+        ["テーマを作る・編集"] = "Create or Edit Theme",
+        ["テーマファイルを読込"] = "Import Theme File",
+        ["テーマを削除"] = "Delete Theme",
+        ["Windowsに表示"] = "Show in Windows",
+        ["編集"] = "Studio",
+        ["向き"] = "Layout",
+        ["明るさ"] = "Brightness",
+        ["接続先"] = "Port",
+        ["再検索"] = "Refresh",
+        ["外部パネルへ表示"] = "Display on External Panel",
+        ["外部パネルを180°反転"] = "Rotate External Panel 180°",
+        ["背景は初回のみ全面送信し、その後は数値と小さなGIFの変更領域だけ更新します。"] =
+            "The background is sent once; subsequent updates cover only values and small GIF regions."
     };
 
-    public MainForm()
+    public MainForm(bool connectOnShown = true)
     {
+        studioTestMode = !connectOnShown;
         Text = BaseWindowTitle;
         ClientSize = new Size(980, 680);
         MinimumSize = new Size(820, 580);
@@ -291,11 +332,13 @@ internal sealed class MainForm : Form
         BackColor = Color.FromArgb(30, 33, 39);
         ForeColor = Color.Gainsboro;
 
-        var tabs = new StyledTabControl { Dock = DockStyle.Fill };
+        var tabs = mainTabs;
         tabs.TabPages.Add(BuildMonitorTab());
         tabs.TabPages.Add(BuildEditorTab());
         tabs.TabPages.Add(BuildOledTab());
         tabs.TabPages.Add(BuildSettingsTab());
+        studioPage = BuildLunePanelTab(connectOnShown);
+        InitializeStudio();
         deviceSelectorPanel.Controls.Add(deviceSelectorLabel);
         deviceSelectorPanel.Controls.Add(deviceComboBox);
         var shell = new TableLayoutPanel {
@@ -308,9 +351,16 @@ internal sealed class MainForm : Form
         Controls.Add(shell);
 
         refreshTimer.Tick += async (_, _) => await MonitorConnectionAsync();
+        hostTelemetryTimer.Tick += async (_, _) => {
+            try { await RefreshHostTemperaturesAsync(); }
+            catch { }
+        };
+        hostTelemetryTimer.Start();
         animationTimer.Tick += (_, _) => graph.Invalidate();
         animationTimer.Start();
         Shown += async (_, _) => {
+            if (!connectOnShown) return;
+            if (lunePanelOptions.StudioEnabled && lunePanelOptions.DesktopAutoShow) ShowLunePanelWindow();
             await EnsureHardwareTemperatureAgentAsync(false);
             MigrateLegacyStartupIfNeeded();
             await ConnectAsync(true);
@@ -318,13 +368,21 @@ internal sealed class MainForm : Form
         deviceComboBox.SelectedIndexChanged +=
             async (_, _) => await DeviceSelectionChangedAsync();
         FormClosing += (_, _) => {
+            applicationClosing = true;
+            StopLunePanel();
             refreshTimer.Stop();
+            hostTelemetryTimer.Stop();
             animationTimer.Stop();
+            // Do not close another top-level form while WinForms is enumerating
+            // Application.OpenForms. Doing so can throw "Collection was modified"
+            // during application shutdown. The message loop owns final cleanup.
+            luneForm?.Hide();
             hardwareTemperatureMonitor.Dispose();
             client.Dispose();
         };
         FormClosed += (_, _) => {
             animationTimer.Dispose();
+            hostTelemetryTimer.Dispose();
             trayIcon.Visible = false;
             trayIcon.Dispose();
             generatedTrayIcon?.Dispose();
@@ -335,6 +393,8 @@ internal sealed class MainForm : Form
         englishCheckBox.CheckedChanged += (_, _) => {
             isEnglish = englishCheckBox.Checked;
             ApplyLanguage(this);
+            UpdateLunePanelLanguage();
+            luneForm?.SetLanguage(isEnglish);
             UpdateLayoutEditorItems();
             UpdateOledModeItems();
             UpdateTemperatureAcquisitionUi();
@@ -351,9 +411,11 @@ internal sealed class MainForm : Form
         };
         alwaysOnTopCheckBox.CheckedChanged += (_, _) => {
             TopMost = alwaysOnTopCheckBox.Checked;
+            if (luneForm is not null) luneForm.TopMost = alwaysOnTopCheckBox.Checked;
             appSettings.AlwaysOnTop = alwaysOnTopCheckBox.Checked;
             appSettings.Save();
         };
+        luneViewButton.Click += (_, _) => ShowLunePanelWindow();
         pumpModeCheckBox.CheckedChanged += async (_, _) => await PumpSettingChangedAsync();
         pumpDutyEditor.ValueChanged += async (_, _) => await PumpSettingChangedAsync();
         saveLedCountButton.Click += async (_, _) => await SaveLedCountsAsync();
@@ -400,6 +462,7 @@ internal sealed class MainForm : Form
         oledModeSelector.PageIntervalSeconds = (int)oledIntervalEditor.Value;
         UpdateOledSupportUi();
         ApplyLanguage(this);
+        UpdateLunePanelLanguage();
         UpdateTemperatureAcquisitionUi();
         RefreshConnectionStatusDisplay();
         ConfigureTrayIcon();
@@ -426,6 +489,7 @@ internal sealed class MainForm : Form
         reconnect.Click += async (_, _) => await ConnectAsync(true);
         header.Controls.Add(connectionLabel);
         header.Controls.Add(reconnect);
+        header.Controls.Add(luneViewButton);
 
         var cards = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5 };
         for (var i = 0; i < 5; i++) cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
@@ -568,6 +632,9 @@ internal sealed class MainForm : Form
         panel.Controls.Add(BuildLedLayoutPanel(), 1, 6);
         panel.Controls.Add(MakeHeader("アプリバージョン"), 0, 7);
         panel.Controls.Add(versionLabel, 1, 7);
+        panel.Controls.Add(MakeHeader("LUNE Studio"), 0, 8);
+        panel.Controls.Add(BuildStudioSetting(), 1, 8);
+        page.AutoScroll = true;
         page.Controls.Add(panel);
         return page;
     }
@@ -718,6 +785,7 @@ internal sealed class MainForm : Form
         catch (Exception ex)
         {
             client.Disconnect();
+            warningAlarmActive = false;
             oledModeSelector.SetSystemUsage(null, null);
             supportsOledHostTelemetry = false;
             UpdateOledSupportUi();
@@ -728,6 +796,7 @@ internal sealed class MainForm : Form
                 Color.Salmon,
                 $": {ErrorText(ex, false)}",
                 $": {ErrorText(ex, true)}");
+            UpdateLuneTelemetry();
         }
         finally
         {
@@ -843,6 +912,10 @@ internal sealed class MainForm : Form
             var rpm1 = await client.QueryAsync(HidDeviceClient.GetFanRpm, 0);
             var duty2 = await client.QueryAsync(HidDeviceClient.GetDuty, 1);
             var rpm2 = await client.QueryAsync(HidDeviceClient.GetFanRpm, 1);
+            currentFan1Duty = duty1;
+            currentFan1Rpm = rpm1;
+            currentFan2Duty = duty2;
+            currentFan2Rpm = rpm2;
             var pumpStatus = pumpModeCheckBox.Checked
                 ? await client.QueryAsync(HidDeviceClient.GetPumpStatus, 0) : 0;
             var sensorStatus = await client.QueryAsync(HidDeviceClient.GetSensorStatus, 0);
@@ -869,6 +942,7 @@ internal sealed class MainForm : Form
                 UpdateWarningAlarm(temperature);
             }
             UpdateSafetyBanner();
+            UpdateLuneTelemetry();
             UpdateTrayTemperature();
             duty1Label.Text = $"{duty1} %";
             rpm1Label.Text = $"{rpm1} rpm";
@@ -886,6 +960,7 @@ internal sealed class MainForm : Form
         catch (Exception ex)
         {
             client.Disconnect();
+            warningAlarmActive = false;
             oledModeSelector.SetSystemUsage(null, null);
             nextReconnectAttemptUtc = DateTime.UtcNow.AddSeconds(3);
             SetConnectionStatus(
@@ -902,6 +977,7 @@ internal sealed class MainForm : Form
             pumpErrorRowStyle.Height = 0;
             supportsOledHostTelemetry = false;
             UpdateOledSupportUi();
+            UpdateLuneTelemetry();
         }
         finally {
             busy = false;
@@ -1102,11 +1178,17 @@ internal sealed class MainForm : Form
 
     private void ClearHostTemperatures()
     {
+        currentCpuTemperature = null;
+        currentGpuTemperature = null;
+        currentGpuUsage = null;
+        currentCpuName = null;
+        currentGpuName = null;
         cpuHostTemperatureLabel.Text = string.Empty;
         gpuHostTemperatureLabel.Text = string.Empty;
         cpuHostTemperatureLabel.ForeColor = Color.Silver;
         gpuHostTemperatureLabel.ForeColor = Color.Silver;
         oledModeSelector.SetHostTemperatures(null, null);
+        UpdateLuneTelemetry();
     }
 
     private async Task SaveOledSettingsAsync()
@@ -1151,6 +1233,8 @@ internal sealed class MainForm : Form
         nextHostTemperatureSendUtc = DateTime.UtcNow.AddSeconds(2);
 
         var usage = await Task.Run(systemUsageMonitor.Read);
+        currentCpuUsage = usage.CpuPercent;
+        currentMemoryUsage = usage.MemoryPercent;
         oledModeSelector.SetSystemUsage(usage.CpuPercent, usage.MemoryPercent);
         if (supportsOledHostTelemetry && client.IsConnected)
             await client.SendHostUsageAsync(usage.CpuPercent, usage.MemoryPercent);
@@ -1171,6 +1255,12 @@ internal sealed class MainForm : Form
         gpuHostTemperatureLabel.ForeColor = snapshot.GpuCelsius.HasValue
             ? Color.LightSkyBlue : Color.Salmon;
         oledModeSelector.SetHostTemperatures(snapshot.CpuCelsius, snapshot.GpuCelsius);
+        currentCpuTemperature = snapshot.CpuCelsius;
+        currentGpuTemperature = snapshot.GpuCelsius;
+        currentGpuUsage = snapshot.GpuUsage;
+        currentCpuName = snapshot.CpuName;
+        currentGpuName = snapshot.GpuName;
+        UpdateLuneTelemetry();
 
         if (supportsOledHostTelemetry && sendHardwareTemperaturesCheckBox.Checked)
             await client.SendHostTemperaturesAsync(
@@ -1633,6 +1723,7 @@ internal sealed class MainForm : Form
         appSettings.Save();
         temperatureLabel.ForeColor = sensorFault ? Color.Salmon : TemperatureColor(
             currentTemperature, (float)warningEditor.Value, lowColor, warningColor);
+        UpdateLuneTelemetry();
         UpdateTrayTemperature();
     }
 
@@ -1646,6 +1737,7 @@ internal sealed class MainForm : Form
         appSettings.Save();
         temperatureLabel.ForeColor = sensorFault ? Color.Salmon : TemperatureColor(
             currentTemperature, (float)warningEditor.Value, lowColor, warningColor);
+        UpdateLuneTelemetry();
         UpdateTrayTemperature();
     }
 
@@ -1711,11 +1803,81 @@ internal sealed class MainForm : Form
 
     private void RestoreFromTray()
     {
+        luneForm?.Hide();
         Show();
         ShowInTaskbar = true;
         WindowState = FormWindowState.Normal;
         Activate();
         trayIcon.Visible = false;
+    }
+
+    private void ShowLuneView()
+    {
+        if (applicationClosing || IsDisposed || Disposing) return;
+
+        if (luneForm is null || luneForm.IsDisposed)
+        {
+            luneForm = new LuneForm();
+            luneForm.ReturnRequested += (_, _) => RestoreFromLuneView();
+            luneForm.ExitRequested += (_, _) => CloseFromLuneView();
+        }
+
+        luneForm.SetLanguage(isEnglish);
+        luneForm.TopMost = alwaysOnTopCheckBox.Checked;
+        UpdateLuneTelemetry();
+        if (!luneForm.Visible) luneForm.Show();
+        luneForm.Activate();
+        ShowInTaskbar = false;
+        Hide();
+    }
+
+    internal void ShowDisconnectedLuneForSmokeTest() => ShowLuneView();
+
+    private void RestoreFromLuneView()
+    {
+        if (applicationClosing || IsDisposed || Disposing) return;
+        Show();
+        ShowInTaskbar = true;
+        WindowState = FormWindowState.Normal;
+        Activate();
+    }
+
+    private void CloseFromLuneView()
+    {
+        if (applicationClosing || IsDisposed || Disposing) return;
+        var closingLune = luneForm;
+        luneForm = null;
+        closingLune?.CloseForApplication();
+        BeginInvoke(Close);
+    }
+
+    internal void CloseFromLuneViewForSmokeTest() => CloseFromLuneView();
+
+    private void UpdateLuneTelemetry()
+    {
+        var connected = client.IsConnected;
+        var temperature = connected && !sensorFault ? currentTemperature : (float?)null;
+        var snapshot = new LuneTelemetrySnapshot(
+            temperature,
+            currentCpuTemperature,
+            currentGpuTemperature,
+            (float)warningEditor.Value,
+            connected,
+            sensorFault,
+            warningAlarmActive,
+            lowColor,
+            warningColor,
+            currentCpuUsage,
+            currentMemoryUsage,
+            currentFan1Duty,
+            currentFan1Rpm,
+            currentFan2Duty,
+            currentFan2Rpm,
+            currentCpuName,
+            currentGpuName, currentGpuUsage);
+        if (luneForm is { IsDisposed: false }) luneForm.UpdateTelemetry(snapshot);
+        if (lunePanelScene is { IsDisposed: false }) lunePanelScene.UpdateTelemetry(snapshot);
+        if (lunePanelWindow is { IsDisposed: false }) lunePanelWindow.UpdateTelemetry(snapshot);
     }
 
     private void UpdateTrayTemperature()

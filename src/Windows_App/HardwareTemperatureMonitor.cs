@@ -4,7 +4,8 @@ using LibreHardwareMonitor.Hardware;
 namespace WaterCoolingDevice;
 
 internal sealed record HostTemperatureSnapshot(
-    float? CpuCelsius, float? GpuCelsius, string? Error = null);
+    float? CpuCelsius, float? GpuCelsius, string? Error = null,
+    string? CpuName = null, string? GpuName = null, float? GpuUsage = null);
 
 internal static class HardwareTemperatureAgentOptions
 {
@@ -15,7 +16,8 @@ internal static class HardwareTemperatureAgentOptions
 internal static class HardwareTemperatureStorage
 {
     private sealed record StoredSnapshot(
-        DateTime UpdatedUtc, float? CpuCelsius, float? GpuCelsius, string? Error);
+        DateTime UpdatedUtc, float? CpuCelsius, float? GpuCelsius, string? Error,
+        string? CpuName = null, string? GpuName = null, float? GpuUsage = null);
 
     private static readonly string Folder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -31,9 +33,25 @@ internal static class HardwareTemperatureStorage
         try
         {
             var stored = new StoredSnapshot(DateTime.UtcNow,
-                snapshot.CpuCelsius, snapshot.GpuCelsius, snapshot.Error);
+                snapshot.CpuCelsius, snapshot.GpuCelsius, snapshot.Error,
+                snapshot.CpuName, snapshot.GpuName, snapshot.GpuUsage);
             File.WriteAllText(temporaryPath, JsonSerializer.Serialize(stored));
-            File.Move(temporaryPath, SnapshotPath, true);
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    File.Move(temporaryPath, SnapshotPath, true);
+                    break;
+                }
+                catch (IOException) when (attempt < 4)
+                {
+                    Thread.Sleep(25);
+                }
+                catch (UnauthorizedAccessException) when (attempt < 4)
+                {
+                    Thread.Sleep(25);
+                }
+            }
         }
         finally
         {
@@ -45,11 +63,13 @@ internal static class HardwareTemperatureStorage
     {
         try
         {
-            var stored = JsonSerializer.Deserialize<StoredSnapshot>(
-                File.ReadAllText(SnapshotPath));
+            using var stream = new FileStream(SnapshotPath, FileMode.Open,
+                FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            var stored = JsonSerializer.Deserialize<StoredSnapshot>(stream);
             if (stored is null || DateTime.UtcNow - stored.UpdatedUtc > TimeSpan.FromSeconds(10))
                 throw new IOException("Temperature data is stale.");
-            snapshot = new(stored.CpuCelsius, stored.GpuCelsius, stored.Error);
+            snapshot = new(stored.CpuCelsius, stored.GpuCelsius, stored.Error,
+                stored.CpuName, stored.GpuName, stored.GpuUsage);
             return true;
         }
         catch (Exception ex)
@@ -126,13 +146,13 @@ internal sealed class LocalHardwareTemperatureReader : IDisposable
             try
             {
                 computer.Accept(visitor);
-                var cpu = ReadPreferredTemperature(
+                var cpu = ReadPreferredHardware(
                     new[] { HardwareType.Cpu },
                     new[] { "Tctl/Tdie", "CPU Package", "Package", "Core Average" });
-                var gpu = ReadPreferredTemperature(
+                var gpu = ReadPreferredHardware(
                     new[] { HardwareType.GpuAmd, HardwareType.GpuNvidia, HardwareType.GpuIntel },
                     new[] { "GPU Core", "Core", "GPU Hot Spot" });
-                return new(cpu, gpu);
+                return new(cpu.Temperature, gpu.Temperature, null, cpu.Name, gpu.Name, ReadGpuUsage(gpu.Name));
             }
             catch (Exception ex)
             {
@@ -141,27 +161,52 @@ internal sealed class LocalHardwareTemperatureReader : IDisposable
         }
     }
 
-    private float? ReadPreferredTemperature(
+    private float? ReadGpuUsage(string? gpuName)
+    {
+        var hardware = computer.Hardware.FirstOrDefault(item =>
+            item.HardwareType is HardwareType.GpuAmd or HardwareType.GpuNvidia or HardwareType.GpuIntel &&
+            string.Equals(CleanName(item.Name), gpuName, StringComparison.Ordinal));
+        if (hardware is null) return null;
+        var sensor = hardware.Sensors.FirstOrDefault(item =>
+            item.SensorType == SensorType.Load &&
+            string.Equals(item.Name, "GPU Core", StringComparison.OrdinalIgnoreCase));
+        return sensor?.Value is float value && float.IsFinite(value)
+            ? Math.Clamp(value, 0, 100) : null;
+    }
+
+    private (float? Temperature, string? Name) ReadPreferredHardware(
         IReadOnlyCollection<HardwareType> types,
         IReadOnlyList<string> preferredNames)
     {
-        var sensors = new List<ISensor>();
-        foreach (var hardware in computer.Hardware.Where(item => types.Contains(item.HardwareType)))
-            CollectTemperatureSensors(hardware, sensors);
+        var candidates = computer.Hardware
+            .Where(item => types.Contains(item.HardwareType)).ToArray();
 
         foreach (var preferred in preferredNames)
         {
-            var match = sensors.FirstOrDefault(sensor =>
-                sensor.Name.Contains(preferred, StringComparison.OrdinalIgnoreCase) &&
-                IsValid(sensor.Value));
-            if (match?.Value is float value) return value;
+            foreach (var hardware in candidates)
+            {
+                var sensors = new List<ISensor>();
+                CollectTemperatureSensors(hardware, sensors);
+                var match = sensors.FirstOrDefault(sensor =>
+                    sensor.Name.Contains(preferred, StringComparison.OrdinalIgnoreCase) &&
+                    IsValid(sensor.Value));
+                if (match?.Value is float value) return (value, CleanName(hardware.Name));
+            }
         }
 
-        return sensors.Select(sensor => sensor.Value)
-            .Where(IsValid)
-            .Cast<float?>()
-            .FirstOrDefault();
+        foreach (var hardware in candidates)
+        {
+            var sensors = new List<ISensor>();
+            CollectTemperatureSensors(hardware, sensors);
+            var value = sensors.Select(sensor => sensor.Value).FirstOrDefault(IsValid);
+            if (value is not null) return (value, CleanName(hardware.Name));
+        }
+        return (null, candidates.Select(item => CleanName(item.Name))
+            .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)));
     }
+
+    private static string? CleanName(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static void CollectTemperatureSensors(IHardware hardware, ICollection<ISensor> result)
     {

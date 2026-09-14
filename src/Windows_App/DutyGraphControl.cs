@@ -96,8 +96,8 @@ internal sealed class DutyGraphControl : Control
         if (!Editable && float.IsFinite(waterTemperature)) {
             var currentX = MapX(Math.Clamp(waterTemperature, 20, 60), plot);
             g.DrawLine(currentTempPen, currentX, plot.Top, currentX, plot.Bottom);
-            var fan1Y = MapY(currentDuty1, plot);
-            var fan2Y = MapY(currentDuty2, plot);
+            var fan1Y = MapY(CurrentMarkerDuty(duty1, waterTemperature, currentDuty1), plot);
+            var fan2Y = MapY(CurrentMarkerDuty(displayedDuty2, waterTemperature, currentDuty2), plot);
             var blinkPhase = (Environment.TickCount64 / 500) % 2 == 0;
             var markersOverlap = Math.Abs(fan1Y - fan2Y) <= 12f;
 
@@ -154,6 +154,15 @@ internal sealed class DutyGraphControl : Control
         var segment = Math.Min(3, (int)((temp - 20) / 10));
         var ratio = (temp - (20 + segment * 10)) / 10f;
         return table[segment] + (table[segment + 1] - table[segment]) * ratio;
+    }
+
+    private static float CurrentMarkerDuty(int[] table, float temperature, int actualDuty)
+    {
+        var curveDuty = Interpolate(table, temperature);
+        // Device duty is reported as an integer, but the curve uses fractional
+        // coordinates. Align only quantization differences; retain real output
+        // deviations (for example a failsafe override).
+        return Math.Abs(curveDuty - actualDuty) < 1f ? curveDuty : actualDuty;
     }
 
     private Rectangle GetPlotRectangle() => new(64, 28,
