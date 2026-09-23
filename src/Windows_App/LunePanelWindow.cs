@@ -1,7 +1,15 @@
-namespace WaterCoolingDevice;
+﻿namespace WaterCoolingDevice;
 
 internal sealed class LunePanelWindow : Form
 {
+    public event EventHandler? PositionSettled;
+
+    protected override void OnResizeEnd(EventArgs e)
+    {
+        base.OnResizeEnd(e);
+        PositionSettled?.Invoke(this, EventArgs.Empty);
+    }
+
     private const int WmNcHitTest = 0x0084;
     private const int HtLeft = 10;
     private const int HtRight = 11;
@@ -108,6 +116,7 @@ internal sealed class LunePanelWindow : Form
         if (e.Button != MouseButtons.Left) return;
         dragging = false;
         Capture = false;
+        PositionSettled?.Invoke(this, EventArgs.Empty);
     }
 
     protected override void WndProc(ref Message message)

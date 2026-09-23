@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Win32;
@@ -12,6 +12,7 @@ internal sealed class AppSettings
     public int LowColorArgb { get; set; } = Color.FromArgb(40, 170, 255).ToArgb();
     public bool BeepOnWarning { get; set; }
     public bool AlwaysOnTop { get; set; }
+    public bool StartMinimized { get; set; }
     public bool Fan2PumpMode { get; set; }
     public int PumpDuty { get; set; } = 60;
     public int OledDisplayMode { get; set; } = 5;
@@ -95,6 +96,8 @@ internal sealed class AppSettings
             destination.LowColorArgb = current.LowColorArgb;
         if (current.BeepOnWarning != original.BeepOnWarning)
             destination.BeepOnWarning = current.BeepOnWarning;
+        if (current.StartMinimized != original.StartMinimized)
+            destination.StartMinimized = current.StartMinimized;
         if (current.AlwaysOnTop != original.AlwaysOnTop)
             destination.AlwaysOnTop = current.AlwaysOnTop;
         if (current.Fan2PumpMode != original.Fan2PumpMode)
@@ -118,6 +121,7 @@ internal sealed class AppSettings
 
     private static void CopyValues(AppSettings source, AppSettings destination)
     {
+        destination.StartMinimized = source.StartMinimized;
         destination.English = source.English;
         destination.WarningColorArgb = source.WarningColorArgb;
         destination.LowColorArgb = source.LowColorArgb;

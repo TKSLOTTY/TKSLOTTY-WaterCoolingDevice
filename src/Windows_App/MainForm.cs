@@ -1,4 +1,4 @@
-namespace WaterCoolingDevice;
+﻿namespace WaterCoolingDevice;
 
 internal sealed partial class MainForm : Form
 {
@@ -360,6 +360,7 @@ internal sealed partial class MainForm : Form
         animationTimer.Start();
         Shown += async (_, _) => {
             if (!connectOnShown) return;
+            if (appSettings.StartMinimized) WindowState = FormWindowState.Minimized;
             if (lunePanelOptions.StudioEnabled && lunePanelOptions.DesktopAutoShow) ShowLunePanelWindow();
             await EnsureHardwareTemperatureAgentAsync(false);
             MigrateLegacyStartupIfNeeded();
@@ -616,7 +617,10 @@ internal sealed partial class MainForm : Form
         panel.Controls.Add(MakeHeader("警告音"), 0, 3);
         panel.Controls.Add(warningBeepCheckBox, 1, 3);
         panel.Controls.Add(MakeHeader("ウィンドウ表示"), 0, 4);
-        panel.Controls.Add(alwaysOnTopCheckBox, 1, 4);
+        var windowSettings = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        windowSettings.Controls.Add(alwaysOnTopCheckBox);
+        windowSettings.Controls.Add(startMinimized);
+        panel.Controls.Add(windowSettings, 1, 4);
         panel.Controls.Add(MakeHeader("PUMP設定"), 0, 5);
         var pumpRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
         pumpRow.Controls.Add(pumpModeCheckBox);

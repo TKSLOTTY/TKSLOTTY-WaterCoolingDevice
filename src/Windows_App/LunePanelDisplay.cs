@@ -1,4 +1,4 @@
-using System.Drawing.Imaging;
+﻿using System.Drawing.Imaging;
 using System.IO.Ports;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -12,6 +12,9 @@ internal sealed record LunePanelOptions
 {
     public bool StudioEnabled { get; init; }
     public bool DesktopAutoShow { get; init; }
+    public bool RestoreWindowPosition { get; init; } = true;
+    public int? WindowX { get; init; }
+    public int? WindowY { get; init; }
     public bool Enabled { get; init; }
     public bool Landscape { get; init; } = true;
     public bool Reverse { get; init; }

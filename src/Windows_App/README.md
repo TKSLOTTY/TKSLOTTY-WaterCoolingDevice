@@ -1,4 +1,4 @@
-# Water Cooling Device — Windows App Source v3.1.0
+# Water Cooling Device — Windows App Source v3.1.1
 
 標準版とLUNE Studioを統合したC# / Windows Formsソースです。
 [利用方法 / User guide](APP_GUIDE.md)・[通信仕様](PROTOCOL_REFERENCE.md)を参照してください。
@@ -22,3 +22,9 @@ The bundled themes are registered without overwriting user edits. User settings 
 `--test-lune-panel` checks the panel protocol and renderer.
 `--smoke-test-theme-editor` checks editor startup.
 Run validation in a disposable output folder because it generates previews and test results.
+
+## Window preferences / ウィンドウ設定
+
+起動時の最小化は設定で有効にできます（初期値OFF）。LUNE Studioの前回位置の復元は初期値ONです。
+
+Enable **Start minimized in the notification area** in Settings (default: off). **Restore previous window position** in LUNE Studio defaults to on.

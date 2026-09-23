@@ -1,12 +1,12 @@
-# Water Cooling Device for Windows — v3.1.0
+# Water Cooling Device for Windows — v3.1.1
 
 標準版とLUNE Editionを1つのアプリに統合しました。
 
 ## ダウンロード / Download
 
-- **[Full版（推奨・.NET 8同梱）](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.1.0/WaterCoolingDevice-Windows-v3.1.0-full.zip)**
-- [Minimal版（.NET 8 Desktop Runtimeが必要）](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.1.0/WaterCoolingDevice-Windows-v3.1.0-minimal.zip)
-- [更新履歴・SHA-256](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/tag/v3.1.0)
+- **[Full版（推奨・.NET 8同梱）](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.1.1/WaterCoolingDevice-Windows-v3.1.1-full.zip)**
+- [Minimal版（.NET 8 Desktop Runtimeが必要）](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.1.1/WaterCoolingDevice-Windows-v3.1.1-minimal.zip)
+- [更新履歴・SHA-256](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/tag/v3.1.1)
 
 Windows 11 x64向け。ZIPをすべて展開し、WaterCoolingDevice.exeを実行してください。
 初回は通常の状態表示で起動します。
@@ -51,3 +51,9 @@ USB表示は動作確認済み3.5インチ機器向けです。すべてのUSB�
 
 利用・改変・再配布の条件は[ソースコード利用条件](licenses/SourceLicense.txt)をご確認ください。第三者ソフトウェアは[ライセンス一覧](licenses/ThirdPartyLicenses.txt)および[Windowsアプリの第三者ソフトウェア通知](src/Windows_App/THIRD_PARTY_NOTICES.md)をご覧ください。
 
+
+## Window preferences / ウィンドウ設定
+
+起動時の最小化は設定で有効にできます（初期値OFF）。LUNE Studioの前回位置の復元は初期値ONです。
+
+Enable **Start minimized in the notification area** in Settings (default: off). **Restore previous window position** in LUNE Studio defaults to on.

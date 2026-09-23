@@ -1,8 +1,10 @@
-namespace WaterCoolingDevice;
+﻿namespace WaterCoolingDevice;
 
 internal sealed partial class MainForm
 {
     private bool studioTestMode;
+    private readonly CheckBox startMinimized = new() { AutoSize = true };
+    private readonly CheckBox restoreWindowPosition = new() { AutoSize = true };
     private readonly StyledTabControl mainTabs = new() { Dock = DockStyle.Fill };
     private TabPage? studioPage;
     private readonly CheckBox studioEnabled = new() { AutoSize = true };
@@ -20,6 +22,16 @@ internal sealed partial class MainForm
 
     private void InitializeStudio()
     {
+        startMinimized.Checked = appSettings.StartMinimized;
+        startMinimized.CheckedChanged += (_, _) => {
+            appSettings.StartMinimized = startMinimized.Checked;
+            if (!studioTestMode) appSettings.Save();
+        };
+        restoreWindowPosition.Checked = lunePanelOptions.RestoreWindowPosition;
+        restoreWindowPosition.CheckedChanged += (_, _) => {
+            lunePanelOptions = lunePanelOptions with { RestoreWindowPosition = restoreWindowPosition.Checked };
+            if (!studioTestMode) lunePanelOptions.Save();
+        };
         studioEnabled.Checked = lunePanelOptions.StudioEnabled;
         desktopAutoShow.Checked = lunePanelOptions.DesktopAutoShow;
         studioEnabled.CheckedChanged += (_, _) => {
@@ -55,6 +67,8 @@ internal sealed partial class MainForm
 
     private void UpdateStudioLanguage()
     {
+        startMinimized.Text = T("アプリ起動時に最小化（通知領域へ）", "Start minimized in the notification area");
+        restoreWindowPosition.Text = T("前回のウィンドウ位置を復元", "Restore previous window position");
         studioEnabled.Text = T("LUNE Studioを有効にする", "Enable LUNE Studio");
         studioDescription.Text = T("テーマを使ったモニター画面を、デスクトップや対応USB液晶に表示できます。", "Display themed monitors on your desktop or a compatible USB display.");
         desktopAutoShow.Text = T("次回起動時にもデスクトップに表示", "Show on desktop when the app starts");
@@ -92,6 +106,13 @@ internal sealed partial class MainForm
     {
         if (!studioTestMode) throw new InvalidOperationException("Test mode required");
         void Check(bool value) { if (!value) throw new InvalidOperationException("Studio check failed"); }
+        Check(!new AppSettings().StartMinimized && new LunePanelOptions().RestoreWindowPosition);
+        Check(System.Text.Json.JsonSerializer.Deserialize<LunePanelOptions>("{}")!.RestoreWindowPosition);
+        startMinimized.Checked = true;
+        Check(appSettings.StartMinimized);
+        startMinimized.Checked = false;
+        Check(ClampPanelPosition(new Point(9000, 9000), new Size(480, 320), new Rectangle(0, 0, 1920, 1080)) == new Point(1440, 760));
+        Check(ClampPanelPosition(new Point(-1500, 50), new Size(480, 320), new Rectangle(-1920, 0, 1920, 1080)) == new Point(-1500, 50));
         Check(!studioEnabled.Checked && !mainTabs.TabPages.Contains(studioPage!));
         studioEnabled.Checked = true;
         Check(mainTabs.TabPages.Contains(studioPage!) && lunePanelWindow is null);
@@ -102,6 +123,8 @@ internal sealed partial class MainForm
             ApplyLanguage(this);
             UpdateLunePanelLanguage();
             Check(studioEnabled.Text == (english ? "Enable LUNE Studio" : "LUNE Studioを有効にする"));
+            Check(startMinimized.Text == (english ? "Start minimized in the notification area" : "アプリ起動時に最小化（通知領域へ）"));
+            Check(restoreWindowPosition.Text == (english ? "Restore previous window position" : "前回のウィンドウ位置を復元"));
             Check(desktopAutoShow.Text == (english ? "Show on desktop when the app starts" : "次回起動時にもデスクトップに表示"));
             mainTabs.SelectedTab = studioPage;
             Show(); Application.DoEvents();
@@ -116,6 +139,21 @@ internal sealed partial class MainForm
         }
         ShowLunePanelWindow();
         Check(lunePanelWindow is { Visible: true });
+        lunePanelWindow!.Location = new Point(100, 100);
+        lunePanelWindow.Close();
+        Check(lunePanelOptions.WindowX == 100 && lunePanelOptions.WindowY == 100);
+        ApplyLunePanelOptions();
+        ShowLunePanelWindow();
+        Check(lunePanelWindow!.Location == new Point(100, 100));
+        lunePanelWindow.Close();
+        restoreWindowPosition.Checked = false;
+        ShowLunePanelWindow();
+        Check(lunePanelWindow!.StartPosition == FormStartPosition.CenterScreen);
+        restoreWindowPosition.Checked = true;
+        WindowState = FormWindowState.Minimized;
+        Check(trayIcon.Visible && !Visible);
+        RestoreFromTray();
+        Check(Visible && WindowState == FormWindowState.Normal);
         var selectedTheme = lunePanelOptions.ThemeFile;
         studioEnabled.Checked = false;
         Check(!mainTabs.TabPages.Contains(studioPage!) && lunePanelWindow is null);

@@ -1,4 +1,4 @@
-using System.IO.Ports;
+﻿using System.IO.Ports;
 
 namespace WaterCoolingDevice;
 
@@ -72,6 +72,7 @@ internal sealed partial class MainForm
         var openWindow = new Button { Text = "Windowsに表示", AutoSize = true };
         Row("編集", edit, import, deleteTheme, openWindow);
         panel.Controls.Add(desktopAutoShow);
+        panel.Controls.Add(restoreWindowPosition);
         Row("向き", lunePanelOrientation, lunePanelReverse);
         Row("明るさ", lunePanelBrightness);
         panel.Controls.Add(lunePanelEnabled);
@@ -189,7 +190,7 @@ internal sealed partial class MainForm
     {
         if (!studioEnabled.Checked || updatingLunePanelUi || lunePanelPort.SelectedItem is not string port ||
             lunePanelOrientation.SelectedIndex < 0 || lunePanelTheme.SelectedItem is not ThemeChoice choice) return;
-        lunePanelOptions = new LunePanelOptions {
+        lunePanelOptions = lunePanelOptions with {
             StudioEnabled = studioEnabled.Checked, DesktopAutoShow = desktopAutoShow.Checked,
             Enabled = lunePanelEnabled.Checked, Landscape = lunePanelOrientation.SelectedIndex == 0,
             Reverse = lunePanelReverse.Checked, Animate = false, Theme = choice.Theme,
@@ -322,11 +323,31 @@ internal sealed partial class MainForm
         ApplyLunePanelOptions();
         if (lunePanelWindow is null || lunePanelWindow.IsDisposed) {
             lunePanelWindow = new LunePanelWindow(choice.Theme, lunePanelOptions.Landscape, customTheme);
-            lunePanelWindow.FormClosed += (_, _) => lunePanelWindow = null;
+            var window = lunePanelWindow;
+            if (lunePanelOptions.RestoreWindowPosition && lunePanelOptions.WindowX is int x && lunePanelOptions.WindowY is int y) {
+                window.StartPosition = FormStartPosition.Manual;
+                var area = Screen.FromRectangle(new Rectangle(x, y, window.Width, window.Height)).WorkingArea;
+                window.Location = ClampPanelPosition(new Point(x, y), window.Size, area);
+            }
+            window.PositionSettled += (_, _) => SavePanelPosition(window);
+            window.FormClosing += (_, _) => SavePanelPosition(window);
+            window.FormClosed += (_, _) => lunePanelWindow = null;
         }
         lunePanelWindow.ApplyTheme(choice.Theme, lunePanelOptions.Landscape, customTheme);
         lunePanelWindow.UpdateTelemetry(CurrentLuneTelemetry());
         lunePanelWindow.Show(); lunePanelWindow.Activate();
+    }
+
+    internal static Point ClampPanelPosition(Point location, Size size, Rectangle area) => new(
+        Math.Clamp(location.X, area.Left, Math.Max(area.Left, area.Right - size.Width)),
+        Math.Clamp(location.Y, area.Top, Math.Max(area.Top, area.Bottom - size.Height)));
+
+    private void SavePanelPosition(LunePanelWindow window)
+    {
+        if (window.WindowState != FormWindowState.Normal) return;
+        lunePanelOptions = lunePanelOptions with { WindowX = window.Left, WindowY = window.Top };
+        try { if (!studioTestMode) lunePanelOptions.Save(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
     }
 
     internal void EnableLunePanelForSession() { lunePanelEnabled.Checked = true; StartLunePanel(); lunePanelTimer.Start(); }
