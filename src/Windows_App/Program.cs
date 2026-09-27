@@ -14,6 +14,36 @@ internal static class Program
         }
 
         ApplicationConfiguration.Initialize();
+        if (args.Contains("--test-resume-recovery")) {
+            using var main = new MainForm(connectOnShown: false);
+            main.VerifyResumeRecovery();
+            return;
+        }
+
+        if (args.Contains("--smoke-test-game-overlay"))
+        {
+            var options = new GameOverlayDisplayOptions(
+                true, Color.Orange, Color.Black,
+                true, true, true, true, true, true, true, 11f, 0);
+            using (var overlay = new GameOverlayForm())
+            {
+                overlay.ApplyOptions(options);
+                overlay.UpdateTelemetry(60, 55, 43, 52, 34.7f, 45, 60);
+            }
+            using var settings = new GameOverlaySettingsForm(options, false);
+            settings.TopMost = true;
+            using var closeTimer = new System.Windows.Forms.Timer { Interval = 250 };
+            settings.Shown += (_, _) => closeTimer.Start();
+            closeTimer.Tick += (_, _) => { closeTimer.Stop(); settings.Close(); };
+            Application.Run(settings);
+            return;
+        }
+
+        if (args.Contains("--test-coolant-argb")) {
+            using var main = new MainForm(connectOnShown: false);
+            main.VerifyCoolantArgb();
+            return;
+        }
 
         if (args.Contains("--test-studio-flow")) {
             using var main = new MainForm(connectOnShown: false);
@@ -156,6 +186,8 @@ internal static class Program
         }
 
         var form = new MainForm();
+        if (args.Contains("--coolant-argb"))
+            form.Shown += (_, _) => form.BeginInvoke(() => form.ShowCoolantArgbSettings());
         if (args.Contains("--lune-panel")) form.EnableLunePanelForSession();
         Application.Run(form);
     }

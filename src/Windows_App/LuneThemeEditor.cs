@@ -135,7 +135,6 @@ internal sealed class LuneThemeCanvas : Control
         return new Point((int)((point.X - target.X) / scale), (int)((point.Y - target.Y) / scale));
     }
 }
-
 internal sealed class LuneThemeEditorForm : Form
 {
     private sealed record MetricChoice(LuneMetric Value, string Name)
@@ -556,4 +555,3 @@ internal sealed class LuneThemeEditorForm : Form
         catch (Exception ex) { MessageBox.Show(this, ex.Message, T("テーマ保存", "Save Theme"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 }
-

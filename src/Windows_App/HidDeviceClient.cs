@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using HidSharp;
 
@@ -92,6 +92,7 @@ internal sealed class HidDeviceClient : IDisposable
     private readonly SemaphoreSlim ioLock = new(1, 1);
     private readonly object stateLock = new();
     private bool disposed;
+    private int connectionEpoch;
 
     public bool IsConnected
     {
@@ -136,13 +137,15 @@ internal sealed class HidDeviceClient : IDisposable
     public void Connect(HidDeviceDescriptor target)
     {
         ThrowIfDisposed();
-        ioLock.Wait();
+        if (!ioLock.Wait(TimeSpan.FromSeconds(3))) throw new TimeoutException("USB operation timed out.");
         HidStream? openedStream = null;
         FileStream? openedDeviceLock = null;
         try
         {
             ThrowIfDisposed();
             DisposeStreamCore();
+            int connectingEpoch;
+            lock (stateLock) connectingEpoch = connectionEpoch;
             Directory.CreateDirectory(DeviceLockFolder);
             var lockPath = Path.Combine(DeviceLockFolder, LockFileName(target.Identity));
 
@@ -166,6 +169,7 @@ internal sealed class HidDeviceClient : IDisposable
                 lock (stateLock)
                 {
                     ObjectDisposedException.ThrowIf(disposed, this);
+                    if (connectingEpoch != connectionEpoch) throw new IOException("USB connection was reset.");
                     device = target.Device;
                     stream = openedStream;
                     deviceLock = openedDeviceLock;
@@ -317,7 +321,8 @@ internal sealed class HidDeviceClient : IDisposable
     public async Task<int> QueryAsync(byte command, byte channel, int value = 0)
     {
         ThrowIfDisposed();
-        await ioLock.WaitAsync();
+        if (!await ioLock.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false))
+            throw new TimeoutException("USB operation timed out.");
         try
         {
             HidDevice activeDevice;
@@ -336,19 +341,24 @@ internal sealed class HidDeviceClient : IDisposable
             output[1] = command;
             output[2] = channel;
             BitConverter.GetBytes(value).CopyTo(output, 3);
-            await Task.Run(() => activeStream.Write(output));
+            await Task.Run(() => activeStream.Write(output)).WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
             var expected = (byte)(ResponseFlag | command);
             var deadline = Environment.TickCount64 + 1500;
             while (Environment.TickCount64 < deadline)
             {
                 var input = new byte[Math.Max(64, activeDevice.GetMaxInputReportLength())];
-                var count = await Task.Run(() => activeStream.Read(input));
+                var count = await Task.Run(() => activeStream.Read(input)).WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
                 if (count >= 7 && input[0] == ReportId &&
                     input[1] == expected && input[2] == channel)
                     return BitConverter.ToInt32(input, 3);
             }
             throw new TimeoutException("水冷ファンコントローラからの応答がありません。");
+        }
+        catch
+        {
+            Disconnect();
+            throw;
         }
         finally
         {
@@ -376,13 +386,9 @@ internal sealed class HidDeviceClient : IDisposable
 
     public void Disconnect()
     {
-        if (IsDisposed()) return;
-        ioLock.Wait();
-        try
-        {
-            if (!IsDisposed()) DisposeStreamCore();
-        }
-        finally { ioLock.Release(); }
+        var (oldStream, oldLock) = DetachStreamCore();
+        oldLock?.Dispose();
+        _ = Task.Run(() => { try { oldStream?.Dispose(); } catch { } });
     }
 
     private void DisposeStreamCore()
@@ -395,6 +401,7 @@ internal sealed class HidDeviceClient : IDisposable
     {
         lock (stateLock)
         {
+            connectionEpoch++;
             var detachedStream = stream;
             var detachedDeviceLock = deviceLock;
             stream = null;

@@ -298,7 +298,7 @@ internal sealed class LunePanelDisplay : IDisposable
         stopping = true;
         lock (gate) pending = null;
         // Only the worker owns the serial handle; bounded writes keep shutdown finite.
-        worker.Wait(TimeSpan.FromSeconds(12));
+        // The worker closes its handle; never wait for USB on the UI thread.
     }
     internal Task Completion => worker;
     internal static byte[] ExtractRectangle(byte[] pixels, int stridePixels, Rectangle bounds)

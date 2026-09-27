@@ -53,7 +53,8 @@ internal static class HardwareTemperatureAgentManager
         // data when the UI starts. Restarting it here created a race with Task
         // Scheduler's IgnoreNew policy, so reuse a healthy agent unchanged.
         if (taskMatches && IsAgentRunning() &&
-            HardwareTemperatureStorage.TryReadFresh(out _))
+            HardwareTemperatureStorage.TryReadFresh(out var existingSnapshot) &&
+            IsHealthy(existingSnapshot))
             return;
 
         StopAgentAndWait();
@@ -69,7 +70,8 @@ internal static class HardwareTemperatureAgentManager
             {
                 Thread.Sleep(100);
                 if (IsAgentRunning() &&
-                    HardwareTemperatureStorage.TryReadFresh(out _))
+                    HardwareTemperatureStorage.TryReadFresh(out var startedSnapshot) &&
+                    IsHealthy(startedSnapshot))
                     return;
             }
 
@@ -79,6 +81,10 @@ internal static class HardwareTemperatureAgentManager
         }
         throw new TimeoutException("Temperature agent did not produce data.");
     }
+
+    private static bool IsHealthy(HostTemperatureSnapshot snapshot) =>
+        string.IsNullOrWhiteSpace(snapshot.Error) &&
+        (snapshot.CpuCelsius.HasValue || snapshot.GpuCelsius.HasValue);
 
     public static void StopAgent()
     {

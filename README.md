@@ -1,15 +1,21 @@
-# Water Cooling Device for Windows — v3.1.1
+# Water Cooling Device for Windows — v3.4.4
 
 標準版とLUNE Editionを1つのアプリに統合しました。
 
 ## ダウンロード / Download
 
-- **[Full版（推奨・.NET 8同梱）](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.1.1/WaterCoolingDevice-Windows-v3.1.1-full.zip)**
-- [Minimal版（.NET 8 Desktop Runtimeが必要）](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.1.1/WaterCoolingDevice-Windows-v3.1.1-minimal.zip)
-- [更新履歴・SHA-256](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/tag/v3.1.1)
+- **[Full版（推奨・.NET 8同梱）](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.4.4/WaterCoolingDevice-Windows-v3.4.4-full.zip)**
+- [Minimal版（.NET 8 Desktop Runtimeが必要）](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/download/v3.4.4/WaterCoolingDevice-Windows-v3.4.4-minimal.zip)
+- [更新履歴・SHA-256](https://github.com/TKSLOTTY/WaterCoolingDevice-Windows/releases/tag/v3.4.4)
 
 Windows 11 x64向け。ZIPをすべて展開し、WaterCoolingDevice.exeを実行してください。
 初回は通常の状態表示で起動します。
+
+## v3.4.4の変更 / Changes
+
+スリープ復帰時のUSB通信待ちによるフリーズを修正し、復帰後に再接続します。v3.4.3のゲームオーバーレイ、温度取得の自動復旧、水温連動ARGBも含みます。
+
+Fixes UI blocking during USB cleanup and reconnects after resume. Includes the v3.4.3 game overlay, telemetry recovery, and coolant ARGB. Simulated recovery tests passed; actual hardware sleep/resume verification is pending.
 
 ## LUNE Studio
 

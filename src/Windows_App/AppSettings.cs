@@ -18,6 +18,19 @@ internal sealed class AppSettings
     public int OledDisplayMode { get; set; } = 5;
     public int OledDisplayIntervalSeconds { get; set; } = 8;
     public bool SendHardwareTemperatures { get; set; } = true;
+    public bool GameOverlayEnabled { get; set; } = true;
+    public bool GameOverlayFilledBackground { get; set; }
+    public int GameOverlayTextColorArgb { get; set; } = Color.FromArgb(255, 145, 0).ToArgb();
+    public int GameOverlayBackgroundColorArgb { get; set; } = Color.Black.ToArgb();
+    public bool GameOverlayShowFps { get; set; } = true;
+    public bool GameOverlayShowCpu { get; set; } = true;
+    public bool GameOverlayShowGpu { get; set; } = true;
+    public bool GameOverlayShowHotSpot { get; set; } = true;
+    public bool GameOverlayShowWater { get; set; } = true;
+    public bool GameOverlayShowFan1Duty { get; set; }
+    public bool GameOverlayShowFan2Duty { get; set; }
+    public float GameOverlayFontSize { get; set; } = 13f;
+    public int GameOverlayTopMargin { get; set; } = 2;
 
     [JsonIgnore]
     private AppSettings? baseline;
@@ -110,6 +123,32 @@ internal sealed class AppSettings
             destination.OledDisplayIntervalSeconds = current.OledDisplayIntervalSeconds;
         if (current.SendHardwareTemperatures != original.SendHardwareTemperatures)
             destination.SendHardwareTemperatures = current.SendHardwareTemperatures;
+        if (current.GameOverlayEnabled != original.GameOverlayEnabled)
+            destination.GameOverlayEnabled = current.GameOverlayEnabled;
+        if (current.GameOverlayFilledBackground != original.GameOverlayFilledBackground)
+            destination.GameOverlayFilledBackground = current.GameOverlayFilledBackground;
+        if (current.GameOverlayTextColorArgb != original.GameOverlayTextColorArgb)
+            destination.GameOverlayTextColorArgb = current.GameOverlayTextColorArgb;
+        if (current.GameOverlayBackgroundColorArgb != original.GameOverlayBackgroundColorArgb)
+            destination.GameOverlayBackgroundColorArgb = current.GameOverlayBackgroundColorArgb;
+        if (current.GameOverlayShowFps != original.GameOverlayShowFps)
+            destination.GameOverlayShowFps = current.GameOverlayShowFps;
+        if (current.GameOverlayShowCpu != original.GameOverlayShowCpu)
+            destination.GameOverlayShowCpu = current.GameOverlayShowCpu;
+        if (current.GameOverlayShowGpu != original.GameOverlayShowGpu)
+            destination.GameOverlayShowGpu = current.GameOverlayShowGpu;
+        if (current.GameOverlayShowHotSpot != original.GameOverlayShowHotSpot)
+            destination.GameOverlayShowHotSpot = current.GameOverlayShowHotSpot;
+        if (current.GameOverlayShowWater != original.GameOverlayShowWater)
+            destination.GameOverlayShowWater = current.GameOverlayShowWater;
+        if (current.GameOverlayShowFan1Duty != original.GameOverlayShowFan1Duty)
+            destination.GameOverlayShowFan1Duty = current.GameOverlayShowFan1Duty;
+        if (current.GameOverlayShowFan2Duty != original.GameOverlayShowFan2Duty)
+            destination.GameOverlayShowFan2Duty = current.GameOverlayShowFan2Duty;
+        if (Math.Abs(current.GameOverlayFontSize - original.GameOverlayFontSize) > 0.01f)
+            destination.GameOverlayFontSize = current.GameOverlayFontSize;
+        if (current.GameOverlayTopMargin != original.GameOverlayTopMargin)
+            destination.GameOverlayTopMargin = current.GameOverlayTopMargin;
     }
 
     private AppSettings CloneValues()
@@ -132,6 +171,19 @@ internal sealed class AppSettings
         destination.OledDisplayMode = source.OledDisplayMode;
         destination.OledDisplayIntervalSeconds = source.OledDisplayIntervalSeconds;
         destination.SendHardwareTemperatures = source.SendHardwareTemperatures;
+        destination.GameOverlayEnabled = source.GameOverlayEnabled;
+        destination.GameOverlayFilledBackground = source.GameOverlayFilledBackground;
+        destination.GameOverlayTextColorArgb = source.GameOverlayTextColorArgb;
+        destination.GameOverlayBackgroundColorArgb = source.GameOverlayBackgroundColorArgb;
+        destination.GameOverlayShowFps = source.GameOverlayShowFps;
+        destination.GameOverlayShowCpu = source.GameOverlayShowCpu;
+        destination.GameOverlayShowGpu = source.GameOverlayShowGpu;
+        destination.GameOverlayShowHotSpot = source.GameOverlayShowHotSpot;
+        destination.GameOverlayShowWater = source.GameOverlayShowWater;
+        destination.GameOverlayShowFan1Duty = source.GameOverlayShowFan1Duty;
+        destination.GameOverlayShowFan2Duty = source.GameOverlayShowFan2Duty;
+        destination.GameOverlayFontSize = source.GameOverlayFontSize;
+        destination.GameOverlayTopMargin = source.GameOverlayTopMargin;
     }
 }
 

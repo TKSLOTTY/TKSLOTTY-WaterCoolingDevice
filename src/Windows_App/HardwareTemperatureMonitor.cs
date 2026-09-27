@@ -5,25 +5,27 @@ namespace WaterCoolingDevice;
 
 internal sealed record HostTemperatureSnapshot(
     float? CpuCelsius, float? GpuCelsius, string? Error = null,
-    string? CpuName = null, string? GpuName = null, float? GpuUsage = null);
+    string? CpuName = null, string? GpuName = null, float? GpuUsage = null,
+    float? GpuHotSpotCelsius = null, float? Fps = null);
 
 internal static class HardwareTemperatureAgentOptions
 {
     public const string AgentArgument = "--temperature-agent";
-    public const string MutexName = @"Local\WaterCoolingDevice.TemperatureAgent.v3";
+    public const string MutexName = @"Local\WaterCoolingDevice.TemperatureAgent.v5";
 }
 
 internal static class HardwareTemperatureStorage
 {
     private sealed record StoredSnapshot(
         DateTime UpdatedUtc, float? CpuCelsius, float? GpuCelsius, string? Error,
-        string? CpuName = null, string? GpuName = null, float? GpuUsage = null);
+        string? CpuName = null, string? GpuName = null, float? GpuUsage = null,
+        float? GpuHotSpotCelsius = null, float? Fps = null);
 
     private static readonly string Folder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "WaterCoolingDevice");
     private static readonly string SnapshotPath = Path.Combine(
-        Folder, "hardware-temperatures-v3.json");
+        Folder, "hardware-temperatures-v5.json");
 
     public static void Write(HostTemperatureSnapshot snapshot)
     {
@@ -34,7 +36,8 @@ internal static class HardwareTemperatureStorage
         {
             var stored = new StoredSnapshot(DateTime.UtcNow,
                 snapshot.CpuCelsius, snapshot.GpuCelsius, snapshot.Error,
-                snapshot.CpuName, snapshot.GpuName, snapshot.GpuUsage);
+                snapshot.CpuName, snapshot.GpuName, snapshot.GpuUsage,
+                snapshot.GpuHotSpotCelsius, snapshot.Fps);
             File.WriteAllText(temporaryPath, JsonSerializer.Serialize(stored));
             for (var attempt = 0; ; attempt++)
             {
@@ -69,7 +72,8 @@ internal static class HardwareTemperatureStorage
             if (stored is null || DateTime.UtcNow - stored.UpdatedUtc > TimeSpan.FromSeconds(10))
                 throw new IOException("Temperature data is stale.");
             snapshot = new(stored.CpuCelsius, stored.GpuCelsius, stored.Error,
-                stored.CpuName, stored.GpuName, stored.GpuUsage);
+                stored.CpuName, stored.GpuName, stored.GpuUsage,
+                stored.GpuHotSpotCelsius, stored.Fps);
             return true;
         }
         catch (Exception ex)
@@ -91,6 +95,8 @@ internal sealed class HardwareTemperatureMonitor : IDisposable
 {
     private bool enabled;
     private bool disposed;
+    private HostTemperatureSnapshot? lastGoodSnapshot;
+    private DateTime lastGoodSnapshotUtc;
 
     public void SetEnabled(bool value) => enabled = value && !disposed;
 
@@ -98,7 +104,22 @@ internal sealed class HardwareTemperatureMonitor : IDisposable
     {
         if (!enabled || disposed) return new(null, null);
 
-        HardwareTemperatureStorage.TryReadFresh(out var snapshot);
+        if (HardwareTemperatureStorage.TryReadFresh(out var snapshot))
+        {
+            if (snapshot.CpuCelsius.HasValue || snapshot.GpuCelsius.HasValue)
+            {
+                lastGoodSnapshot = snapshot;
+                lastGoodSnapshotUtc = DateTime.UtcNow;
+            }
+            return snapshot;
+        }
+
+        // Keep the overlay stable across a brief agent restart or an atomic
+        // snapshot-file race, while preserving the error so MainForm can
+        // trigger recovery in the background.
+        if (lastGoodSnapshot is not null &&
+            DateTime.UtcNow - lastGoodSnapshotUtc < TimeSpan.FromSeconds(15))
+            return lastGoodSnapshot with { Error = snapshot.Error };
         return snapshot;
     }
 
@@ -106,6 +127,7 @@ internal sealed class HardwareTemperatureMonitor : IDisposable
     {
         disposed = true;
         enabled = false;
+        lastGoodSnapshot = null;
     }
 }
 
@@ -151,8 +173,12 @@ internal sealed class LocalHardwareTemperatureReader : IDisposable
                     new[] { "Tctl/Tdie", "CPU Package", "Package", "Core Average" });
                 var gpu = ReadPreferredHardware(
                     new[] { HardwareType.GpuAmd, HardwareType.GpuNvidia, HardwareType.GpuIntel },
-                    new[] { "GPU Core", "Core", "GPU Hot Spot" });
-                return new(cpu.Temperature, gpu.Temperature, null, cpu.Name, gpu.Name, ReadGpuUsage(gpu.Name));
+                    new[] { "GPU Core", "Core" });
+                var hotSpot = ReadPreferredSensor(
+                    new[] { HardwareType.GpuAmd, HardwareType.GpuNvidia, HardwareType.GpuIntel },
+                    new[] { "GPU Hot Spot", "Hot Spot", "Hotspot" });
+                return new(cpu.Temperature, gpu.Temperature, null, cpu.Name, gpu.Name,
+                    ReadGpuUsage(gpu.Name), hotSpot);
             }
             catch (Exception ex)
             {
@@ -203,6 +229,25 @@ internal sealed class LocalHardwareTemperatureReader : IDisposable
         }
         return (null, candidates.Select(item => CleanName(item.Name))
             .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)));
+    }
+
+    private float? ReadPreferredSensor(
+        IReadOnlyCollection<HardwareType> types,
+        IReadOnlyList<string> preferredNames)
+    {
+        foreach (var preferred in preferredNames)
+        {
+            foreach (var hardware in computer.Hardware.Where(item => types.Contains(item.HardwareType)))
+            {
+                var sensors = new List<ISensor>();
+                CollectTemperatureSensors(hardware, sensors);
+                var match = sensors.FirstOrDefault(sensor =>
+                    sensor.Name.Contains(preferred, StringComparison.OrdinalIgnoreCase) &&
+                    IsValid(sensor.Value));
+                if (match?.Value is float value) return value;
+            }
+        }
+        return null;
     }
 
     private static string? CleanName(string? value) =>

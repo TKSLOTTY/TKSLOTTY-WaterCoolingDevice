@@ -5,7 +5,7 @@ internal sealed partial class MainForm
     private bool studioTestMode;
     private readonly CheckBox startMinimized = new() { AutoSize = true };
     private readonly CheckBox restoreWindowPosition = new() { AutoSize = true };
-    private readonly StyledTabControl mainTabs = new() { Dock = DockStyle.Fill };
+    private readonly StyledTabControl mainTabs = new() { Dock = DockStyle.Fill, Multiline = true };
     private TabPage? studioPage;
     private readonly CheckBox studioEnabled = new() { AutoSize = true };
     private readonly Label studioDescription = new() { AutoSize = true, MaximumSize = new Size(480, 0) };

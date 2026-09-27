@@ -16,3 +16,9 @@
 `PawnIO_setup.exe` is distributed unmodified. Installation is optional and is
 only needed for hardware sensors that require low-level access. The application
 does not include or use WinRing0.
+
+## Microsoft.Diagnostics.Tracing.TraceEvent 3.2.6
+
+- Project: https://github.com/microsoft/perfview
+- License: MIT
+- Used to count Windows DXGI/D3D9 presentation events for the non-injected FPS display.

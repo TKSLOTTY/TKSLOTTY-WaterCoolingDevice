@@ -1,30 +1,72 @@
-# Water Cooling Device — Windows App Source v3.1.1
+# Water Cooling Device — WCD-01
 
-標準版とLUNE Studioを統合したC# / Windows Formsソースです。
-[利用方法 / User guide](APP_GUIDE.md)・[通信仕様](PROTOCOL_REFERENCE.md)を参照してください。
+## 日本語
 
-## Build
+WaterCoolingDevice.exe を起動してください。初期状態では状態表示・ファン出力設定・OLED表示・設定が使えます。
 
-Windows x64、.NET 8 SDKが必要です。
+### ゲームオーバーレイ
+設定 →「ゲーム右上にFPS・CPU・GPU・HOTSPOT・水温を表示」を有効にすると、
+全画面またはボーダーレス表示のゲーム右上へ1行で表示します。RTSSやHWiNFOは不要です。
+クリック操作は透過します。排他フルスクリーンでは表示できないため、その場合はゲームを
+ボーダーレスウィンドウにしてください。温度取得を無効にするとオーバーレイも無効になります。
+「オーバーレイ表示項目・色...」では、背景の透明／塗りつぶし、文字色、背景色と、
+FPS・各温度・FAN1/FAN2 DUTYの表示有無を選択できます。
+文字サイズと画面上端からの余白（0～50px）も変更できます。
+温度エージェントの停止やデータ期限切れは自動検出し、ゲームを中断せず再起動します。
 
-```powershell
-dotnet build -c Release
-dotnet publish -c Release -r win-x64 --self-contained true -o publish/full
-dotnet publish -c Release -r win-x64 --self-contained false -o publish/minimal
-```
+### LUNE Studio（任意）
+設定 →「LUNE Studioを有効にする」でStudioタブが現れます。
+サムネイルからテーマを選び、「Windowsに表示」でデスクトップに表示できます。
+「次回起動時にもデスクトップに表示」は別設定です。有効化だけでは表示窓は開きません。
+「USB液晶にも表示」で対応USB液晶にも表示できます。向き・180度反転・明るさ・接続先を設定してください。
+無効にしても保存テーマと設定は残ります。
+純正UsbMonitorが起動していると接続が競合します。完全に終了してから接続してください。
 
-Themesフォルダの8テーマは初回登録されます。ユーザー設定は配布しません。
-The bundled themes are registered without overwriting user edits. User settings are not distributed.
+### 保存先
+設定・保存テーマ: %LOCALAPPDATA%\WaterCoolingDevice
+テーマ: LuneThemes\テーマ名\テーマ名.lunetheme
+各テーマのBackgrounds、GIFs、layout.jsonは同じテーマフォルダに保存されます。
+アプリ内のテーマファイル読込で .lunetheme を登録できます。
+アプリフォルダのtheme-assetsは編集用素材です。
 
-## Validation
+### 必要なファイル
+EXE・DLL・deps.json・runtimeconfig.jsonを一緒に保持してください。
+Tools\PawnIO_setup.exe はハードウェア温度取得用のオプションインストーラーです。
+THIRD_PARTY_NOTICES.md に同梱ライブラリの案内があります。
+.NET 8 Desktop Runtime（Windows x64）が必要です。
 
-`--test-studio-flow` checks optional Studio activation, language switching, desktop display and disable behavior without saving Studio settings.
-`--test-lune-panel` checks the panel protocol and renderer.
-`--smoke-test-theme-editor` checks editor startup.
-Run validation in a disposable output folder because it generates previews and test results.
+## English
 
-## Window preferences / ウィンドウ設定
+Run WaterCoolingDevice.exe. The default interface provides Status, Fan Output Settings, OLED Display, and Settings.
 
-起動時の最小化は設定で有効にできます（初期値OFF）。LUNE Studioの前回位置の復元は初期値ONです。
+### Game overlay
+Enable “Show FPS, CPU, GPU, hotspot and coolant in the game overlay” in Settings.
+The single-line overlay appears at the top right of fullscreen or borderless games without RTSS or HWiNFO.
+It is click-through. Exclusive fullscreen cannot be overlaid; use borderless windowed mode instead.
+Disabling hardware temperature acquisition also disables the overlay.
+“Overlay items and colors...” configures transparent/filled background, text and background colors,
+and individual FPS, temperature, FAN1 DUTY, and FAN2 DUTY fields.
+Font size and the top-screen margin (0–50 px) are also configurable.
+The temperature agent is restarted silently if it stops or its data becomes stale.
 
-Enable **Start minimized in the notification area** in Settings (default: off). **Restore previous window position** in LUNE Studio defaults to on.
+### Optional LUNE Studio
+Enable “LUNE Studio” in Settings to reveal its tab.
+Choose a theme thumbnail and click “Show in Windows” to display it on your desktop.
+“Show on desktop when the app starts” is independent; enabling Studio alone does not open a display window.
+Use “Display on USB monitor” for a compatible USB display. Configure layout, rotation, brightness, and port.
+Disabling Studio preserves your themes and settings.
+Fully close the vendor's UsbMonitor application before connecting to avoid port conflicts.
+
+### Storage
+Settings and saved themes: %LOCALAPPDATA%\WaterCoolingDevice
+Themes: LuneThemes\Theme Name\Theme Name.lunetheme
+Backgrounds, GIFs, and layout.json are stored alongside each theme.
+Import .lunetheme files from Studio. The application's theme-assets folder contains editable source assets.
+
+### Required files
+Keep the EXE, DLLs, deps.json, and runtimeconfig.json together.
+Tools\PawnIO_setup.exe is the optional hardware temperature driver installer.
+See THIRD_PARTY_NOTICES.md for bundled library notices.
+Requires the .NET 8 Desktop Runtime for Windows x64.
+
+スリープ復帰修正 / Resume fix: USB cleanup no longer waits on the UI thread; USB connections are reset after resume. Hardware sleep/resume verification is pending.

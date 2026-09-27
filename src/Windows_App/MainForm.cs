@@ -128,6 +128,12 @@ internal sealed partial class MainForm : Form
     private readonly CheckBox sendHardwareTemperaturesCheckBox = new() {
         Text = "CPU・GPU温度を取得・表示する", AutoSize = true
     };
+    private readonly CheckBox gameOverlayCheckBox = new() {
+        Text = "ゲーム右上にFPS・CPU・GPU・HOTSPOT・水温を表示", AutoSize = true
+    };
+    private readonly Button gameOverlaySettingsButton = new() {
+        Text = "オーバーレイ表示項目・色...", AutoSize = true
+    };
     private readonly Button installPawnIoButton = new() {
         Text = "PawnIOをセットアップ", AutoSize = true
     };
@@ -170,6 +176,8 @@ internal sealed partial class MainForm : Form
     private float currentTemperature;
     private float? currentCpuTemperature;
     private float? currentGpuTemperature;
+    private float? currentGpuHotSpotTemperature;
+    private float? currentGameFps;
     private float? currentGpuUsage;
     private string? currentCpuName;
     private string? currentGpuName;
@@ -197,10 +205,15 @@ internal sealed partial class MainForm : Form
     private int lastSettingsVersion = -1;
     private bool supportsOledHostTelemetry;
     private DateTime nextHostTemperatureSendUtc = DateTime.MinValue;
+    private DateTime nextHardwareAgentRecoveryUtc = DateTime.MinValue;
+    private bool hardwareAgentRecoveryInProgress;
+    private int consecutiveMissingHardwareSnapshots;
     private bool updatingStartupCheckBox;
     private bool updatingHardwareTemperatureCheckBox;
+    private bool updatingGameOverlayCheckBox;
     private bool applicationClosing;
     private LuneForm? luneForm;
+    private GameOverlayForm? gameOverlay;
 
     private static readonly Dictionary<string, string> JapaneseToEnglish = new() {
         ["状態表示"] = "Status",
@@ -278,6 +291,9 @@ internal sealed partial class MainForm : Form
         ["切替時間:"] = "Page Interval:",
         ["秒"] = "sec",
         ["CPU・GPU温度を取得・表示する"] = "Acquire and display CPU/GPU temperatures",
+        ["ゲーム右上にFPS・CPU・GPU・HOTSPOT・水温を表示"] =
+            "Show FPS, CPU, GPU, hotspot and coolant in the game overlay",
+        ["オーバーレイ表示項目・色..."] = "Overlay items and colors...",
         ["PawnIOをセットアップ"] = "Set up PawnIO",
         ["OLED設定を本体へ保存"] = "Save OLED Settings to Device",
         ["対応ファームウェアの接続待ち"] = "Waiting for compatible firmware",
@@ -337,6 +353,7 @@ internal sealed partial class MainForm : Form
         tabs.TabPages.Add(BuildEditorTab());
         tabs.TabPages.Add(BuildOledTab());
         tabs.TabPages.Add(BuildSettingsTab());
+        tabs.TabPages.Add(BuildCoolantArgbTab());
         studioPage = BuildLunePanelTab(connectOnShown);
         InitializeStudio();
         deviceSelectorPanel.Controls.Add(deviceSelectorLabel);
@@ -350,6 +367,7 @@ internal sealed partial class MainForm : Form
         shell.Controls.Add(tabs, 0, 1);
         Controls.Add(shell);
 
+        Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
         refreshTimer.Tick += async (_, _) => await MonitorConnectionAsync();
         hostTelemetryTimer.Tick += async (_, _) => {
             try { await RefreshHostTemperaturesAsync(); }
@@ -370,6 +388,8 @@ internal sealed partial class MainForm : Form
             async (_, _) => await DeviceSelectionChangedAsync();
         FormClosing += (_, _) => {
             applicationClosing = true;
+            Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+            coolantArgbOutput.Dispose();
             StopLunePanel();
             refreshTimer.Stop();
             hostTelemetryTimer.Stop();
@@ -378,6 +398,7 @@ internal sealed partial class MainForm : Form
             // Application.OpenForms. Doing so can throw "Collection was modified"
             // during application shutdown. The message loop owns final cleanup.
             luneForm?.Hide();
+            gameOverlay?.Hide();
             hardwareTemperatureMonitor.Dispose();
             client.Dispose();
         };
@@ -425,6 +446,9 @@ internal sealed partial class MainForm : Form
             oledModeSelector.PageIntervalSeconds = (int)oledIntervalEditor.Value;
         sendHardwareTemperaturesCheckBox.CheckedChanged +=
             async (_, _) => await HardwareTemperatureSettingChangedAsync();
+        gameOverlayCheckBox.CheckedChanged +=
+            async (_, _) => await GameOverlaySettingChangedAsync();
+        gameOverlaySettingsButton.Click += (_, _) => ShowGameOverlaySettings();
         installPawnIoButton.Click += async (_, _) => await InstallPawnIoAsync();
         ledLayout1Editor.SelectedIndexChanged += (_, _) => UpdateLedLayoutUi(0);
         ledLayout2Editor.SelectedIndexChanged += (_, _) => UpdateLedLayoutUi(1);
@@ -447,10 +471,21 @@ internal sealed partial class MainForm : Form
         englishCheckBox.Checked = appSettings.English;
         pumpDutyEditor.Value = Math.Clamp(appSettings.PumpDuty, 35, 100);
         pumpModeCheckBox.Checked = appSettings.Fan2PumpMode;
+        if (appSettings.GameOverlayEnabled && !appSettings.SendHardwareTemperatures)
+        {
+            appSettings.SendHardwareTemperatures = true;
+            appSettings.Save();
+        }
         updatingHardwareTemperatureCheckBox = true;
         sendHardwareTemperaturesCheckBox.Checked = appSettings.SendHardwareTemperatures;
         updatingHardwareTemperatureCheckBox = false;
         hardwareTemperatureMonitor.SetEnabled(sendHardwareTemperaturesCheckBox.Checked);
+        updatingGameOverlayCheckBox = true;
+        gameOverlayCheckBox.Checked = appSettings.GameOverlayEnabled;
+        updatingGameOverlayCheckBox = false;
+        gameOverlay = new GameOverlayForm();
+        gameOverlay.ApplyOptions(GameOverlayDisplayOptions.From(appSettings));
+        gameOverlay.SetEnabledForGames(gameOverlayCheckBox.Checked);
         oledModeSelector.HardwareTemperaturesEnabled =
             sendHardwareTemperaturesCheckBox.Checked;
         isEnglish = englishCheckBox.Checked;
@@ -620,6 +655,8 @@ internal sealed partial class MainForm : Form
         var windowSettings = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
         windowSettings.Controls.Add(alwaysOnTopCheckBox);
         windowSettings.Controls.Add(startMinimized);
+        windowSettings.Controls.Add(gameOverlayCheckBox);
+        windowSettings.Controls.Add(gameOverlaySettingsButton);
         panel.Controls.Add(windowSettings, 1, 4);
         panel.Controls.Add(MakeHeader("PUMP設定"), 0, 5);
         var pumpRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
@@ -716,7 +753,7 @@ internal sealed partial class MainForm : Form
 
     private async Task MonitorConnectionAsync()
     {
-        if (reconnecting || busy) return;
+        if (powerSuspended || applicationClosing || reconnecting || busy) return;
 
         if (client.IsConnected) {
             if (DateTime.UtcNow >= nextDeviceScanUtc)
@@ -731,7 +768,7 @@ internal sealed partial class MainForm : Form
 
     private async Task ConnectAsync(bool manual, string? requestedIdentity = null)
     {
-        if (reconnecting) return;
+        if (powerSuspended || applicationClosing || reconnecting) return;
         if (!manual && DateTime.UtcNow < nextReconnectAttemptUtc) return;
 
         reconnecting = true;
@@ -788,6 +825,7 @@ internal sealed partial class MainForm : Form
         }
         catch (Exception ex)
         {
+            coolantArgbOutput.Release();
             client.Disconnect();
             warningAlarmActive = false;
             oledModeSelector.SetSystemUsage(null, null);
@@ -927,6 +965,7 @@ internal sealed partial class MainForm : Form
             currentTemperature = temperature;
 
             sensorFault = sensorStatus != 0 || temperature < -20f || temperature > 60f;
+            UpdateGameOverlayTelemetry();
             if (sensorFault) {
                 temperatureLabel.Font = temperatureFaultFont;
                 temperatureLabel.AutoSize = false;
@@ -959,10 +998,12 @@ internal sealed partial class MainForm : Form
             oledModeSelector.SetDeviceValues(
                 sensorFault ? null : temperature, duty1, duty2, rpm1, rpm2,
                 pumpModeCheckBox.Checked);
+            await UpdateCoolantArgbAsync();
             await RefreshHostTemperaturesAsync();
         }
         catch (Exception ex)
         {
+            coolantArgbOutput.Release();
             client.Disconnect();
             warningAlarmActive = false;
             oledModeSelector.SetSystemUsage(null, null);
@@ -1078,6 +1119,8 @@ internal sealed partial class MainForm : Form
         if (updatingHardwareTemperatureCheckBox) return;
 
         var enabled = sendHardwareTemperaturesCheckBox.Checked;
+        if (!enabled && gameOverlayCheckBox.Checked)
+            gameOverlayCheckBox.Checked = false;
         appSettings.SendHardwareTemperatures = enabled;
         appSettings.Save();
         hardwareTemperatureMonitor.SetEnabled(enabled);
@@ -1103,7 +1146,7 @@ internal sealed partial class MainForm : Form
 
     private async Task EnsureHardwareTemperatureAgentAsync(bool offerPawnIoInstall)
     {
-        if (!sendHardwareTemperaturesCheckBox.Checked) return;
+        if (!sendHardwareTemperaturesCheckBox.Checked && !gameOverlayCheckBox.Checked) return;
 
         if (!HardwareTemperatureAgentManager.IsPawnIoInstalled() && offerPawnIoInstall)
         {
@@ -1184,6 +1227,8 @@ internal sealed partial class MainForm : Form
     {
         currentCpuTemperature = null;
         currentGpuTemperature = null;
+        currentGpuHotSpotTemperature = null;
+        currentGameFps = null;
         currentGpuUsage = null;
         currentCpuName = null;
         currentGpuName = null;
@@ -1193,6 +1238,7 @@ internal sealed partial class MainForm : Form
         gpuHostTemperatureLabel.ForeColor = Color.Silver;
         oledModeSelector.SetHostTemperatures(null, null);
         UpdateLuneTelemetry();
+        UpdateGameOverlayTelemetry();
     }
 
     private async Task SaveOledSettingsAsync()
@@ -1233,7 +1279,7 @@ internal sealed partial class MainForm : Form
 
     private async Task RefreshHostTemperaturesAsync()
     {
-        if (DateTime.UtcNow < nextHostTemperatureSendUtc) return;
+        if (powerSuspended || applicationClosing || DateTime.UtcNow < nextHostTemperatureSendUtc) return;
         nextHostTemperatureSendUtc = DateTime.UtcNow.AddSeconds(2);
 
         var usage = await Task.Run(systemUsageMonitor.Read);
@@ -1250,6 +1296,13 @@ internal sealed partial class MainForm : Form
         }
 
         var snapshot = await Task.Run(hardwareTemperatureMonitor.Read);
+        var hardwareDataMissing =
+            !snapshot.CpuCelsius.HasValue && !snapshot.GpuCelsius.HasValue;
+        consecutiveMissingHardwareSnapshots = hardwareDataMissing
+            ? consecutiveMissingHardwareSnapshots + 1 : 0;
+        if (!string.IsNullOrWhiteSpace(snapshot.Error) ||
+            consecutiveMissingHardwareSnapshots >= 2)
+            StartHardwareAgentRecovery();
         cpuHostTemperatureLabel.Text = snapshot.CpuCelsius is { } cpu
             ? $"{cpu:F1} °C" : string.Empty;
         gpuHostTemperatureLabel.Text = snapshot.GpuCelsius is { } gpu
@@ -1261,14 +1314,85 @@ internal sealed partial class MainForm : Form
         oledModeSelector.SetHostTemperatures(snapshot.CpuCelsius, snapshot.GpuCelsius);
         currentCpuTemperature = snapshot.CpuCelsius;
         currentGpuTemperature = snapshot.GpuCelsius;
+        currentGpuHotSpotTemperature = snapshot.GpuHotSpotCelsius;
+        currentGameFps = snapshot.Fps;
         currentGpuUsage = snapshot.GpuUsage;
         currentCpuName = snapshot.CpuName;
         currentGpuName = snapshot.GpuName;
         UpdateLuneTelemetry();
+        UpdateGameOverlayTelemetry();
 
         if (supportsOledHostTelemetry && sendHardwareTemperaturesCheckBox.Checked)
             await client.SendHostTemperaturesAsync(
                 snapshot.CpuCelsius, snapshot.GpuCelsius);
+    }
+
+    private async Task GameOverlaySettingChangedAsync()
+    {
+        if (updatingGameOverlayCheckBox) return;
+        var temperatureAcquisitionWasEnabled = sendHardwareTemperaturesCheckBox.Checked;
+        if (gameOverlayCheckBox.Checked && !sendHardwareTemperaturesCheckBox.Checked)
+            sendHardwareTemperaturesCheckBox.Checked = true;
+        appSettings.GameOverlayEnabled = gameOverlayCheckBox.Checked;
+        appSettings.Save();
+        gameOverlay?.SetEnabledForGames(gameOverlayCheckBox.Checked);
+        UpdateGameOverlayTelemetry();
+        if (gameOverlayCheckBox.Checked && temperatureAcquisitionWasEnabled)
+            await EnsureHardwareTemperatureAgentAsync(true);
+    }
+
+    private void StartHardwareAgentRecovery()
+    {
+        if (hardwareAgentRecoveryInProgress ||
+            DateTime.UtcNow < nextHardwareAgentRecoveryUtc ||
+            (!sendHardwareTemperaturesCheckBox.Checked && !gameOverlayCheckBox.Checked))
+            return;
+
+        hardwareAgentRecoveryInProgress = true;
+        nextHardwareAgentRecoveryUtc = DateTime.UtcNow.AddSeconds(20);
+        _ = RecoverHardwareAgentAsync();
+    }
+
+    private async Task RecoverHardwareAgentAsync()
+    {
+        try
+        {
+            await Task.Run(HardwareTemperatureAgentManager.EnsureTaskAndStart);
+            nextHostTemperatureSendUtc = DateTime.MinValue;
+        }
+        catch
+        {
+            // The next scheduled recovery retries quietly. Avoid interrupting a
+            // fullscreen game with a dialog for a transient sensor failure.
+        }
+        finally
+        {
+            hardwareAgentRecoveryInProgress = false;
+        }
+    }
+
+    private void UpdateGameOverlayTelemetry()
+    {
+        gameOverlay?.UpdateTelemetry(
+            currentGameFps, currentCpuTemperature, currentGpuTemperature,
+            currentGpuHotSpotTemperature,
+            client.IsConnected && !sensorFault ? currentTemperature : null,
+            currentFan1Duty, currentFan2Duty);
+    }
+
+    private void ShowGameOverlaySettings()
+    {
+        using var dialog = new GameOverlaySettingsForm(
+            GameOverlayDisplayOptions.From(appSettings), isEnglish);
+        // A modal child of a TopMost window is not consistently promoted by
+        // Windows. Explicitly mirror the owner so the settings cannot open
+        // behind the main controller window.
+        dialog.TopMost = TopMost;
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        dialog.SelectedOptions.ApplyTo(appSettings);
+        appSettings.Save();
+        gameOverlay?.ApplyOptions(dialog.SelectedOptions);
+        UpdateGameOverlayTelemetry();
     }
 
     private Control BuildLedLayoutPanel()
@@ -1448,6 +1572,7 @@ internal sealed partial class MainForm : Form
                 Color.LightSkyBlue);
 
             string? reconnectIdentity = preferredDeviceIdentity ?? client.ConnectedIdentity;
+            coolantArgbOutput.Release();
             client.Disconnect();
             await Task.Delay(1800);
             for (int attempt = 0; attempt < 10 && !client.IsConnected; attempt++)
@@ -1923,6 +2048,7 @@ internal sealed partial class MainForm : Form
         }
         UpdatePumpUi();
         UpdateSafetyBanner();
+        if (ReferenceEquals(root, this)) UpdateCoolantArgbLanguage();
     }
 
     private string ErrorText(Exception ex) => ErrorText(ex, isEnglish);

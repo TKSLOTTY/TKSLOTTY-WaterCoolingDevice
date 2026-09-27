@@ -9,14 +9,15 @@
     <RootNamespace>WaterCoolingDevice</RootNamespace>
     <Product>Water Cooling Device - WCD-01</Product>
     <Title>Water Cooling Device - WCD-01</Title>
-    <Version>3.1.1</Version>
-    <AssemblyVersion>3.1.1.0</AssemblyVersion>
-    <FileVersion>3.1.1.0</FileVersion>
+    <Version>3.4.4</Version>
+    <AssemblyVersion>3.4.4.0</AssemblyVersion>
+    <FileVersion>3.4.4.0</FileVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="HidSharp" Version="2.6.4" />
     <PackageReference Include="System.IO.Ports" Version="10.0.3" />
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.2.6" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Assets\LuneNormal.png" />

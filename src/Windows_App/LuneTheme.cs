@@ -22,7 +22,6 @@ internal enum LuneMetric
     GpuName,
     GpuUsage
 }
-
 internal sealed class LuneThemeElement
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -410,4 +409,3 @@ internal sealed class LuneThemeRenderer : IDisposable
         animations.Clear();
     }
 }
-
