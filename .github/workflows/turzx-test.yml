@@ -1,0 +1,42 @@
+name: TURZX 5inch test ZIP
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/turzx-test.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:GITHUB_WORKSPACE 'tests/TURZX-5inch-Test'
+          $compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+          & $compiler /nologo /target:winexe /optimize+ "/out:$dir/UsbScreenTest.exe" /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Management.dll "$dir/Program.cs"
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
+          $p = Start-Process "$dir/UsbScreenTest.exe" -ArgumentList '--self-test' -Wait -PassThru -WindowStyle Hidden
+          if ($p.ExitCode -ne 0) { throw 'Self-test failed' }
+          Get-Content "$dir/self-test-result.txt"
+          $files = @('UsbScreenTest.exe','Program.cs','README.md','LICENSE','build.ps1','Run.cmd') | ForEach-Object { Join-Path $dir $_ }
+          Compress-Archive -LiteralPath $files -DestinationPath TURZX-5inch-Test-v0.1.0.zip
+      - name: Publish test release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'turzx-test-v0.1.0'
+          $tags = @(gh api --paginate "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name')
+          if ($LASTEXITCODE -ne 0) { throw 'Release lookup failed' }
+          if ($tags -notcontains $tag) {
+            gh release create $tag --target $env:GITHUB_SHA --prerelease --latest=false --title 'TURZX 5inch Test v0.1.0' --notes 'Standalone Windows test. Download and extract ZIP, then run UsbScreenTest.exe. Includes GPL source. Hardware validation pending.'
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
+          }
+          gh release upload $tag TURZX-5inch-Test-v0.1.0.zip --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'ZIP upload failed' }
