@@ -19,7 +19,7 @@ jobs:
         run: |
           $dir = Join-Path $env:GITHUB_WORKSPACE 'tests/TURZX-5inch-Test'
           $compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
-          & $compiler /nologo /target:winexe /optimize+ "/out:$dir/UsbScreenTest.exe" /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Management.dll "$dir/Program.cs"
+          & $compiler /nologo /target:winexe /optimize+ "/out:$(Join-Path $dir 'UsbScreenTest.exe')" /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Management.dll (Join-Path $dir 'Program.cs')
           if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
           $p = Start-Process "$dir/UsbScreenTest.exe" -ArgumentList '--self-test' -Wait -PassThru -WindowStyle Hidden
           if ($p.ExitCode -ne 0) { throw 'Self-test failed' }
