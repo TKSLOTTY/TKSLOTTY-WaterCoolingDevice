@@ -68,3 +68,8 @@ Enable **Start minimized in the notification area** in Settings (default: off). 
 ## TURZX 5inch テストプログラム
 
 [独立したWindows用C#テストアプリ](tests/TURZX-5inch-Test/README.md)：UsbPCMonitor 5インチ（Rev.A）／Turing・TURZX 5インチ（Rev.C）を選択し、800×480背景表示・中央カウントダウンの部分更新・COM選択・通信ログ保存を試せます。本体アプリへの組込みはなく、実機動作は未確認です。
+
+
+**[TURZX 5inch テストプログラム：EXE入りZIPを直接ダウンロード](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/releases/download/turzx-test-v0.1.0/TURZX-5inch-Test-v0.1.0.zip)**
+
+ZIPを展開してUsbScreenTest.exeを起動してください。Rev.A／Rev.C選択・800×480背景・カウントダウン部分更新に対応する独立テスト版です。実機動作は未確認です。
