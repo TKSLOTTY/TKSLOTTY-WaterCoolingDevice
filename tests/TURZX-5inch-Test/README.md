@@ -5,9 +5,15 @@
 WaterCoolingDeviceとは独立したWindows用C# / Windows Formsテストアプリです。
 Windows 10/11の.NET Framework 4.8で実行できます。NuGetや追加SDKは不要です。
 
+## ダウンロード
+
+**[TURZX 5inch テストプログラム（EXE入りZIP）](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/releases/download/turzx-test-v0.1.0/TURZX-5inch-Test-v0.1.0.zip)**
+
+ZIPをすべて展開し、UsbScreenTest.exeを起動してください。ソースも同梱。実機動作未確認のテスト版です。
+
 ## 使い方
 
-1. リポジトリをZIPでダウンロードして展開し、tests/TURZX-5inch-Test/Run.cmdをダブルクリックします。Windows標準のC#コンパイラでビルドして起動します。
+1. 上記のEXE入りZIPをダウンロードして展開し、UsbScreenTest.exeをダブルクリックします。ビルドは不要です。
 2. 初期状態は「プレビューのみ」です。背景表示とカウントダウンを試せます。
 3. 実機へ送る場合はメーカーアプリなどCOMを使用するソフトを終了します。
 4. 画面上でUsbPCMonitor 5インチ（Rev.A）またはTuring / TURZX 5インチ（Rev.C）を選びます。
