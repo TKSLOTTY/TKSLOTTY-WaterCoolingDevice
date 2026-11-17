@@ -63,3 +63,8 @@ USB表示は動作確認済み3.5インチ機器向けです。すべてのUSB�
 起動時の最小化は設定で有効にできます（初期値OFF）。LUNE Studioの前回位置の復元は初期値ONです。
 
 Enable **Start minimized in the notification area** in Settings (default: off). **Restore previous window position** in LUNE Studio defaults to on.
+
+
+## TURZX 5inch テストプログラム
+
+[独立したWindows用C#テストアプリ](tests/TURZX-5inch-Test/README.md)：UsbPCMonitor 5インチ（Rev.A）／Turing・TURZX 5インチ（Rev.C）を選択し、800×480背景表示・中央カウントダウンの部分更新・COM選択・通信ログ保存を試せます。本体アプリへの組込みはなく、実機動作は未確認です。
