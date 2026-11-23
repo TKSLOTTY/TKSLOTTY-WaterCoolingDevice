@@ -67,9 +67,21 @@ Enable **Start minimized in the notification area** in Settings (default: off). 
 
 ## TURZX 5inch テストプログラム
 
-[独立したWindows用C#テストアプリ](tests/TURZX-5inch-Test/README.md)：UsbPCMonitor 5インチ（Rev.A）／Turing・TURZX 5インチ（Rev.C）を選択し、800×480背景表示・中央カウントダウンの部分更新・COM選択・通信ログ保存を試せます。本体アプリへの組込みはなく、実機動作は未確認です。
+### メインアプリで5インチを試す（v3.4.5-beta.1）
+
+**[Windowsベータ版のZIPをダウンロード](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/releases/download/v3.4.5-beta.1/WaterCoolingDevice-Windows-v3.4.5-beta.1-x64.zip)**（Windows x64、.NET 8 Desktop Runtime x64が必要）
+
+1. 旧版と純正UsbMonitorを終了します。ZIPをすべて展開し、`WaterCoolingDevice.exe` を起動します。
+2. 設定で「LUNE Studioを有効にする」をオンにして、LUNE Studioタブを開きます。
+3. 「5インチに表示」にチェックを入れて、接続する機種（Rev.A／Rev.C）を選びます。COMは `AUTO` で検索できます。検出できない場合はCOMを手動で選びます。
+
+3.5インチも別のCOMポートで同時に表示できます。5インチではテーマを縦横比そのままで中央に配置し、余白を黒で表示します。機種とCOMの設定は次回起動時に復元します。ベータ版の5インチ実機動作は確認中です。
+
+### 単体テストプログラム
+
+[独立したWindows用C#テストアプリ](tests/TURZX-5inch-Test/README.md)：UsbPCMonitor 5インチ（Rev.A）／Turing・TURZX 5インチ（Rev.C）を選択し、800×480背景表示・中央カウントダウンの部分更新・COM選択・通信ログ保存を試せます。
 
 
 **[TURZX 5inch テストプログラム：EXE入りZIPを直接ダウンロード](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/releases/download/turzx-test-v0.1.0/TURZX-5inch-Test-v0.1.0.zip)**
 
-ZIPを展開してUsbScreenTest.exeを起動してください。Rev.A／Rev.C選択・800×480背景・カウントダウン部分更新に対応する独立テスト版です。実機動作は未確認です。
+ZIPを展開してUsbScreenTest.exeを起動してください。Rev.A／Rev.C選択・800×480背景・カウントダウン部分更新に対応する独立テスト版です。
