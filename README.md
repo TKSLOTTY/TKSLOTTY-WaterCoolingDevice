@@ -67,15 +67,17 @@ Enable **Start minimized in the notification area** in Settings (default: off). 
 
 ## TURZX 5inch テストプログラム
 
-### メインアプリで5インチを試す（v3.4.5-beta.1）
+### メインアプリで5インチを試す（v3.4.5-beta.2）
 
-**[Windowsベータ版のZIPをダウンロード](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/releases/download/v3.4.5-beta.1/WaterCoolingDevice-Windows-v3.4.5-beta.1-x64.zip)**（Windows x64、.NET 8 Desktop Runtime x64が必要）
+**[Windowsベータ版のZIPをダウンロード](https://github.com/TKSLOTTY/TKSLOTTY-WaterCoolingDevice/releases/download/v3.4.5-beta.2/WaterCoolingDevice-Windows-v3.4.5-beta.2-x64.zip)**（Windows x64、.NET 8 Desktop Runtime x64が必要）
 
 1. 旧版と純正UsbMonitorを終了します。ZIPをすべて展開し、`WaterCoolingDevice.exe` を起動します。
 2. 設定で「LUNE Studioを有効にする」をオンにして、LUNE Studioタブを開きます。
 3. 「5インチに表示」にチェックを入れて、接続する機種（Rev.A／Rev.C）を選びます。COMは `AUTO` で検索できます。検出できない場合はCOMを手動で選びます。
 
-3.5インチも別のCOMポートで同時に表示できます。5インチではテーマを縦横比そのままで中央に配置し、余白を黒で表示します。機種とCOMの設定は次回起動時に復元します。ベータ版の5インチ実機動作は確認中です。
+3.5インチも別のCOMポートで同時に表示できます。横向きの5インチは「5インチを横いっぱいに引き伸ばす」で全画面表示と中央表示を切り替えられます。「5インチプレビュー」を押すと、USB液晶をつながずに表示を確認できます。
+
+5インチの明るさは0〜100%で調整できます。「180°反転」は各USB液晶に個別に適用されます。機種、COM、明るさ、表示設定は次回起動時に復元します。beta.2で追加した明るさと反転のUSB実機動作は確認中です。
 
 ### 単体テストプログラム
 
